@@ -1,0 +1,2 @@
+{"name":"cod2-server","private":true,"type":"module",
+ "dependencies":{"ws":"^8.18.0","mongodb":"^6.9.0"}}
