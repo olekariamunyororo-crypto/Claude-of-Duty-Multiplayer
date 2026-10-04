@@ -1,3 +1,4 @@
+import './net/debug.js';
 import { Engine } from './core/engine.js';
 import { createConfig } from './core/config.js';
 import { detectMobile, applyMobileProfile } from './core/mobileProfile.js';
