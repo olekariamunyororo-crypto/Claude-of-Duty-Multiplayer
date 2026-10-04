@@ -13,6 +13,8 @@ import { FxSystem } from './fx/index.js';
 import { AiSystem } from './ai/index.js';
 import { UiSystem } from './ui/index.js';
 import { AudioSystem } from './audio/index.js';
+import { NetSystem } from './net/index.js';
+import { joinLobby } from './net/lobby.js';
 
 import { installShotApi } from './dev/shots.js';
 import { prewarm } from './core/prewarm.js';
@@ -80,6 +82,10 @@ if (new URLSearchParams(location.search).get('aidebug') === '1') {
   }, 500);
 }
 
+const lobby = await joinLobby();
+class SeededWorld extends WorldSystem {
+  async init(ctx) { ctx.rng.seed(lobby.seed); return super.init(ctx); }
+}
 const engine = new Engine({ canvas, config });
 if (config.timeScale != null) engine.time.scale = config.timeScale;
 
@@ -87,14 +93,14 @@ engine
   .add(RenderSystem)
   .add(MaterialSystem)
   .add(SkySystem)
-  .add(WorldSystem)
+  .add(SeededWorld)
   .add(PhysicsSystem)
   .add(PlayerSystem)
   .add(WeaponSystem)
   .add(FxSystem)
-  .add(AiSystem)
   .add(UiSystem)
-  .add(AudioSystem);
+  .add(AudioSystem)
+  .add(NetSystem, lobby);
 
 try {
   await engine.init();

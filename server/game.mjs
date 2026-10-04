@@ -1,4 +1,5 @@
 import { boot } from './boot.mjs';
+const SPAWN_R = Number(process.env.SPAWN_RANGE) || 40;
 const MAX_HP = 100, RADIUS = 0.4, HEIGHT = 1.8, EYE = 1.6;
 const SPEED_LIMIT = 14, FIRE_GAP = 60, DMG = 25, RESPAWN_MS = 3000;
 const fin = (a) => Array.isArray(a) && a.length === 3 && a.every(Number.isFinite);
@@ -28,7 +29,7 @@ export class Game {
   spawn() {
     if (this.dev) return [...this.devSpawns[this.nextDev++ % this.devSpawns.length]];
     for (let i = 0; i < 80; i++) {
-      const x = (Math.random() * 2 - 1) * 40, z = (Math.random() * 2 - 1) * 40;
+      const x = (Math.random() * 2 - 1) * SPAWN_R, z = (Math.random() * 2 - 1) * SPAWN_R;
       const r = this.physics.raycast(x, 2, z, 0, -1, 0, 5);
       if (r.hit && r.distance > 1.9 && r.distance < 2.2) return [x, 2 - r.distance, z];
     }

@@ -1,5 +1,5 @@
 import WebSocket from 'ws';
-const URL = process.env.URL || 'ws://localhost:8080';
+const URL = process.env.WS_URL || 'ws://localhost:8080';
 const client = (name) => new Promise((res) => {
   const ws = new WebSocket(URL), c = { ws, msgs: [] };
   ws.on('open', () => ws.send(JSON.stringify({ t: 'auth', token: 'dev:' + name })));
