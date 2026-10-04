@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 
 const SEND_MS = 50;
+const AV_COLORS = { vanguard: 0xc8a46a, irregular: 0x6f8a4a, breacher: 0x7d8ea6 };
 const COLORS = [0xe0503a, 0x3a8fe0, 0x58c46a, 0xe0b43a, 0xb05ae0, 0x3ae0d0];
 
 function nameTag(text) {
@@ -68,7 +69,7 @@ export class NetSystem {
   }
 
   _spawn(s) {
-    const mesh = new THREE.Mesh(this.geo, new THREE.MeshBasicMaterial({ color: COLORS[s.id % COLORS.length] }));
+    const mesh = new THREE.Mesh(this.geo, new THREE.MeshBasicMaterial({ color: (AV_COLORS[s.av] ?? COLORS[s.id % COLORS.length]) }));
     const tag = nameTag(s.name); mesh.add(tag);
     mesh.position.set(s.p[0], s.p[1] + 0.9, s.p[2]);
     this.group.add(mesh);

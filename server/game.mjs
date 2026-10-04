@@ -97,6 +97,6 @@ export class Game {
       }
     }
     this.all({ t: 'snap', players: [...this.players.values()].map((p) => ({
-      id: p.id, name: p.name, p: p.p, yaw: p.yaw, pitch: p.pitch, hp: p.hp, alive: p.alive, k: p.kills, d: p.deaths })) });
+      id: p.id, name: p.name, av: p.av, p: p.p, yaw: p.yaw, pitch: p.pitch, hp: p.hp, alive: p.alive, k: p.kills, d: p.deaths })) });
   }
 }

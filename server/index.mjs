@@ -4,6 +4,7 @@ import { MongoClient } from 'mongodb';
 import { Game } from './game.mjs';
 import { verify } from './auth.mjs';
 
+const AVATARS = ['vanguard', 'irregular', 'breacher'];
 const PORT = process.env.PORT || 8080;
 const DEV = process.env.DEV_AUTH === '1';
 const ORIGINS = (process.env.ALLOWED_ORIGINS || '').split(',').filter(Boolean);
@@ -38,6 +39,7 @@ wss.on('connection', (ws) => {
         clearTimeout(timer);
         for (const o of game.players.values()) if (o.sub === u.sub) o.ws.close(4002, 'signed in elsewhere');
         pl = game.add(ws, u);
+        pl.av = AVATARS.includes(m.av) ? m.av : 'vanguard';
         if (u.cred) ws.send(JSON.stringify({ t: 'cred', cred: u.cred }));
         col?.updateOne({ _id: u.sub }, { $set: { name: u.name, lastSeen: new Date() },
           $setOnInsert: { kills: 0, deaths: 0 } }, { upsert: true }).catch(console.error);
