@@ -1,3 +1,4 @@
+window.__MP__ = true;
 const SERVER_URL = 'wss://cod2-server.onrender.com';
 const params = new URLSearchParams(location.search);
 const fresh = params.has('fresh'); // ?fresh=1 -> new guest each time (for 2 tabs)

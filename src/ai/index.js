@@ -562,6 +562,7 @@ export class AiSystem {
    * Works even when the nav grid is not ready yet.
    */
   populate(opts = {}) {
+    if (window.__MP__) return 0;
     if (this._populated && !opts.force) return this.agents.length;
 
     const cfg = this.ctx?.config;
