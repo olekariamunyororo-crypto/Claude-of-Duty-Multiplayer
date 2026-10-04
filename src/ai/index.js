@@ -40,6 +40,8 @@
 import * as THREE from 'three';
 import { SoldierMaterials } from './textures.js';
 import { buildSoldier, resolveMaterials, MATERIAL_SLOTS, VARIANTS } from './soldier.js';
+import { RIG as PUPPET_RIG } from './rig.js';
+import { Animator as PuppetAnimator } from './animator.js';
 import { RIG } from './rig.js';
 import { NavGrid, CoverMap } from './nav.js';
 import { Agent, STATE } from './agent.js';
@@ -391,6 +393,33 @@ export class AiSystem {
       );
     }
     return v;
+  }
+
+  /** Visual-only soldier for a network player: skinned mesh + animator, no brain or physics. */
+  createPuppet(look) {
+    const name = VARIANTS[look] ? look : 'vanguard';
+    const v = this.variant(name);
+    const scale = VARIANTS[name].scale ?? 1;
+    const { bones, skeleton, root } = PUPPET_RIG.createSkeleton();
+    const mesh = new THREE.SkinnedMesh(v.geometry, v.materials);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    mesh.frustumCulled = false;
+    const group = new THREE.Group();
+    group.name = 'puppet';
+    group.add(root);
+    group.add(mesh);
+    mesh.bind(skeleton);
+    group.scale.setScalar(scale);
+    this.root.add(group);
+    group.updateMatrixWorld(true);
+    const animator = new PuppetAnimator(PUPPET_RIG, bones, {
+      weapon: v.weapon,
+      rng: this.rng.fork(),
+      scale,
+      probe: (x, z, fromY, out) => this.probeGround(x, z, fromY, out),
+    });
+    return { group, mesh, animator, dispose: () => { group.removeFromParent(); skeleton.dispose?.(); } };
   }
 
   /** Bone index lookup for the shared rig (used by the ragdoll spec). */

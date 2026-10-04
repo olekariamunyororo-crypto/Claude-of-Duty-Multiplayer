@@ -98,6 +98,7 @@ engine
   .add(PlayerSystem)
   .add(WeaponSystem)
   .add(FxSystem)
+  .add(AiSystem)
   .add(UiSystem)
   .add(AudioSystem)
   .add(NetSystem, lobby);
@@ -148,7 +149,7 @@ engine.start();
       if (softTries < 50) setTimeout(forceGarrisonSoft, 500);
     }
   };
-  setTimeout(forceGarrisonSoft, 1200);
+  // multiplayer: no local AI garrison
 }
 
 
