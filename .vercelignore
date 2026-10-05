@@ -1,0 +1,7 @@
+art/
+docs/
+dist/
+node_modules/
+.openai/
+.vercel/
+.env*
