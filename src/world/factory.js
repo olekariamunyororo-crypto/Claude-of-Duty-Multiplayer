@@ -4,6 +4,7 @@
  * Inspired by the Nik Lever factory shooter level, rebuilt with pure geometry.
  * Hall ~50 x 40 m plus outer yard, continuous perimeter, side rooms with office
  * furniture, shipping containers, wrecked cars, bikes and industrial clutter.
+ * Fully sealed — no gates, no open wall sections.
  */
 
 import * as THREE from 'three';
@@ -165,92 +166,73 @@ function _floor(A, rng) {
 }
 
 function _perimeter(A, rng) {
+  // Fully sealed outer compound wall — no gates, no gaps.
   const e = HALL_W / 2 + YARD;
   const d = HALL_D / 2 + YARD;
-  const h = 3.2;
-  const t = 0.35;
-  const gateW = 6;
+  const h = 3.6;
+  const t = 0.4;
 
-  for (const side of [-1, 1]) {
-    const len = e - gateW / 2;
-    const cx = side * (gateW / 2 + len / 2);
-    const panel = wallPanel(len, h, t, [], { bevel: 0.02, rng });
-    A.addOnce('concrete_dark', panel, trs(_m, cx, 0, d));
-    A.box('concrete', cx, h / 2, d, len, h, t);
+  // North & south continuous walls
+  for (const [z, ry] of [[d, 0], [-d, Math.PI]]) {
+    const panel = wallPanel(e * 2 + t, h, t, [], { bevel: 0.02, rng });
+    A.addOnce('concrete_dark', panel, trs(_m, 0, 0, z, ry));
+    A.box('concrete', 0, h / 2, z, e * 2 + t, h, t);
   }
-  for (const side of [-1, 1]) {
-    const len = e - gateW / 2;
-    const cx = side * (gateW / 2 + len / 2);
-    const panel = wallPanel(len, h, t, [], { bevel: 0.02, rng });
-    A.addOnce('concrete_dark', panel, trs(_m, cx, 0, -d, Math.PI));
-    A.box('concrete', cx, h / 2, -d, len, h, t);
-  }
+  // East & west continuous walls
   for (const side of [-1, 1]) {
     const x = side * e;
-    const panel = wallPanel(d * 2, h, t, [], { bevel: 0.02, rng });
+    const panel = wallPanel(d * 2 + t, h, t, [], { bevel: 0.02, rng });
     A.addOnce('concrete_dark', panel, trs(_m, x, 0, 0, side > 0 ? -Math.PI / 2 : Math.PI / 2));
-    A.box('concrete', x, h / 2, 0, t, h, d * 2);
+    A.box('concrete', x, h / 2, 0, t, h, d * 2 + t);
   }
 
-  for (const z of [-d, d]) {
-    for (const x of [-gateW / 2, gateW / 2]) {
-      const post = chamferBox(0.45, h + 0.8, 0.45, 0.03);
-      weatherProp(post, { base: 0.3, wear: 0.6, height: h });
-      A.addOnce('concrete', post, trs(_m, x, (h + 0.8) / 2, z));
-      A.box('concrete', x, (h + 0.8) / 2, z, 0.45, h + 0.8, 0.45);
+  // Corner towers
+  for (const x of [-e, e]) {
+    for (const z of [-d, d]) {
+      const post = chamferBox(0.7, h + 1.2, 0.7, 0.04);
+      weatherProp(post, { base: 0.3, wear: 0.55, height: h });
+      A.addOnce('concrete', post, trs(_m, x, (h + 1.2) / 2, z));
+      A.box('concrete', x, (h + 1.2) / 2, z, 0.7, h + 1.2, 0.7);
     }
   }
 
+  // Continuous top rail on all sides
   for (const z of [-d, d]) {
-    for (const side of [-1, 1]) {
-      const len = e - gateW / 2;
-      const cx = side * (gateW / 2 + len / 2);
-      const rail = chamferBox(len, 0.06, 0.06, 0.005);
-      fillMasks(rail, 0.2, 0.3, 0.15);
-      A.addOnce('steel', rail, trs(_m, cx, h + 0.15, z));
-    }
+    const rail = chamferBox(e * 2, 0.08, 0.08, 0.005);
+    fillMasks(rail, 0.2, 0.3, 0.15);
+    A.addOnce('steel', rail, trs(_m, 0, h + 0.2, z));
+  }
+  for (const x of [-e, e]) {
+    const rail = chamferBox(0.08, 0.08, d * 2, 0.005);
+    fillMasks(rail, 0.2, 0.3, 0.15);
+    A.addOnce('steel', rail, trs(_m, x, h + 0.2, 0));
   }
 }
 
 function _walls(A, rng) {
+  // Fully sealed inner hall shell — continuous walls on all four sides, no bays.
   const hw = HALL_W / 2;
   const hd = HALL_D / 2;
   const t = WALL_T;
   const h = WALL_H;
 
+  // East & west solid walls (full length)
   for (const side of [-1, 1]) {
     const x = side * (hw + t / 2);
-    const segs = [
-      { z0: -hd, z1: -8 },
-      { z0: -4, z1: 4 },
-      { z0: 8, z1: hd },
-    ];
-    for (const s of segs) {
-      const len = s.z1 - s.z0;
-      const cz = (s.z0 + s.z1) / 2;
-      const panel = wallPanel(len, h, t, [], { bevel: 0.03, rng });
-      A.addOnce('concrete_dark', panel, trs(_m, x, 0, cz, side > 0 ? -Math.PI / 2 : Math.PI / 2));
-      A.box('concrete', x, h / 2, cz, t, h, len, side > 0 ? -Math.PI / 2 : Math.PI / 2);
-    }
-    for (const bz of [-6, 6]) {
-      const lintel = chamferBox(t + 0.2, 0.5, 4.5, 0.02);
-      weatherProp(lintel, { base: 0.3, wear: 0.7 });
-      A.addOnce('concrete', lintel, trs(_m, x, h - 0.4, bz));
-      A.box('concrete', x, h - 0.4, bz, t + 0.2, 0.5, 4.5);
-    }
+    const panel = wallPanel(HALL_D + t, h, t, [], { bevel: 0.03, rng });
+    A.addOnce('concrete_dark', panel, trs(_m, x, 0, 0, side > 0 ? -Math.PI / 2 : Math.PI / 2));
+    A.box('concrete', x, h / 2, 0, t, h, HALL_D + t, side > 0 ? -Math.PI / 2 : Math.PI / 2);
   }
 
+  // North & south solid walls (full width) — no open centre
   for (const side of [-1, 1]) {
     const z = side * (hd + t / 2);
-    for (const sx of [-1, 1]) {
-      const cx = sx * (hw / 2 + 4);
-      const len = hw / 2 - 2;
-      const panel = wallPanel(len, h * 0.7, t, [], { bevel: 0.03, rng, top: 'ragged', raggedAmp: 0.25 });
-      A.addOnce('concrete_dark', panel, trs(_m, cx, 0, z, side > 0 ? Math.PI : 0));
-      A.box('concrete', cx, (h * 0.7) / 2, z, len, h * 0.7, t, side > 0 ? Math.PI : 0);
-    }
+    const panel = wallPanel(HALL_W + t, h, t, [], { bevel: 0.03, rng });
+    A.addOnce('concrete_dark', panel, trs(_m, 0, 0, z, side > 0 ? Math.PI : 0));
+    A.box('concrete', 0, h / 2, z, HALL_W + t, h, t);
   }
 
+  // Corner columns
   for (const x of [-hw, hw]) {
     for (const z of [-hd, hd]) {
       const col = chamferBox(1.1, h + 0.5, 1.1, 0.04);
@@ -564,8 +546,8 @@ function _yardProps(A, rng) {
   }
 
   if (A.has('jersey')) {
-    for (const z of [-HALL_D / 2 - YARD + 2, HALL_D / 2 + YARD - 2]) {
-      for (const x of [-5, 5]) {
+    for (const z of [-HALL_D / 2 - 4, HALL_D / 2 + 4]) {
+      for (const x of [-8, -3, 3, 8]) {
         A.put('jersey', x, 0, z, 0);
         A.box('concrete', x, 0.45, z, 0.6, 0.9, 1.9);
       }
