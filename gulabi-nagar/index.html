@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#a34d36"><meta name="description" content="Wander through Gulabi Nagar, a fictional Jaipur-inspired railway neighbourhood. A living, cel-shaded world of chai stalls, pink havelis and local trains.">
+<title>Gulabi Nagar · An afternoon in Jaipur</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="./style.css">
+<script type="importmap">{"imports":{"three":"./node_modules/three/build/three.module.js","three/addons/":"./node_modules/three/examples/jsm/"}}</script>
+</head>
+<body>
+<canvas id="scene" tabindex="0" aria-label="Walkable 3D Jaipur-inspired neighbourhood"></canvas>
+<div id="intro"><section class="intro-shell" role="dialog" aria-modal="true" aria-labelledby="intro-title">
+<header class="intro-mast"><div class="intro-brand"><span class="intro-mark">GN<span class="intro-mark-dot">.</span></span><span class="intro-brand-rule"></span><span>A WALKING WORLD</span></div><span class="intro-location">RAJASTHAN, INDIA <span> / </span> एक दोपहर</span></header>
+<div class="intro-copy">
+<div class="eyebrow"><span class="eyebrow-rule"></span> AN AFTERNOON IN JAIPUR</div>
+<p class="name" lang="hi">गुलाबी नगर</p>
+<h1 id="intro-title">Gulabi <em>Nagar.</em></h1>
+<p class="description">Chai on the corner. A local train due in.<br>The rest of the afternoon is yours.</p>
+<div class="entry"><button id="go" disabled>Start wandering <span aria-hidden="true">↗</span></button><div class="loading"><div id="loadlabel" role="status">Preparing the street…</div><div class="stripe"><div id="bar"></div></div></div></div>
+<div class="keys"><span><kbd>W A S D</kbd> to walk</span><span><kbd>Mouse</kbd> to look</span><span><kbd>1–5</kbd> to explore</span></div>
+<div class="touch-intro">Drag left to walk · drag right to look</div>
+</div>
+<footer class="intro-footer"><div class="route" aria-label="Railway route from Chandpole via Gulabi Nagar to Sanganer"><span class="route-label">ON THE LINE</span><span class="route-stop">CHANDPOLE</span><span class="route-track"><i></i><i class="current"></i><i></i></span><span class="route-stop current">GULABI NAGAR</span><span class="route-stop">SANGANER</span></div></footer>
+</section></div>
+<div class="hud" id="identity"><span class="identity-mark">GN</span><div>GULABI NAGAR<small>JAIPUR-INSPIRED · INDIA</small></div></div>
+<div class="hud" id="toast"><div class="sign"><span class="t-name"></span></div></div>
+<div class="hud" id="corner"><span id="clock">16:02</span><select id="quality" aria-label="Graphics quality"><option value="high">High quality</option><option value="medium">Medium quality</option><option value="low">Low quality</option></select><button class="chip" id="mute" aria-pressed="false" aria-label="Mute sound">Sound</button></div>
+<nav class="hud" id="places" aria-label="Explore the neighbourhood"><button data-place="1"><span>01</span> Bazaar</button><button data-place="2"><span>02</span> Chowk</button><button data-place="3"><span>03</span> Station</button><button data-place="4"><span>04</span> Crossing</button><button data-place="5"><span>05</span> Promenade</button></nav>
+<div class="hud" id="help"><span class="desk"><kbd>WASD</kbd> walk · <kbd>Shift</kbd> run · <kbd>Space</kbd> jump · <kbd>F</kbd> fly · <kbd>Esc</kbd> release mouse · <kbd>H</kbd> hide UI</span><span class="touch">Drag left to walk · drag right to look</span></div>
+<div class="hud" id="cross"></div><div id="stats" hidden></div>
+<script type="module" src="./src/main.js"></script>
+</body></html>
