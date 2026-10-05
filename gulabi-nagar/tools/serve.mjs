@@ -34,4 +34,4 @@ http.createServer((req, res) => {
     });
     res.end(data);
   });
-}).listen(port, '127.0.0.1', () => console.log(`serving ${root} on http://localhost:${port}`));
+}).listen(port, '0.0.0.0', () => console.log(`serving ${root} on http://localhost:${port}`));
