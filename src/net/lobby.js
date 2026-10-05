@@ -1,3 +1,4 @@
+import { createPreview } from './preview.js';
 window.__MP__ = true;
 const SERVER_URL = 'wss://cod2-server.onrender.com';
 const params = new URLSearchParams(location.search);
@@ -47,7 +48,7 @@ export function joinLobby() {
 
     if (!params.has('nopreview')) {
       const host = el.querySelector('#prev');
-      import('./preview.js').then((mod) => {
+      Promise.resolve({ createPreview }).then((mod) => {
         if (!host.isConnected) return;
         host.style.display = 'block';
         prev = mod.createPreview(host, AVS.map((a) => a[0]), av, (id) => { av = id; store.set(LS.av, id); paint(); });
