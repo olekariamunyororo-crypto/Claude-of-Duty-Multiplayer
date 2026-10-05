@@ -15,6 +15,7 @@ export function joinLobby() {
     el.style.cssText = 'position:fixed;inset:0;z-index:20000;display:flex;align-items:center;justify-content:center;background:#0b0d10;color:#e8e8e8;font:16px system-ui,sans-serif';
     el.innerHTML = '<div style="width:min(86vw,340px);text-align:center">' +
       '<div style="font-size:26px;font-weight:700;letter-spacing:.06em;margin-bottom:18px">CLAUDE OF DUTY<br>MULTIPLAYER</div>' +
+      '<div id="prev" style="position:relative;height:220px;margin:0 0 12px;border-radius:10px;overflow:hidden;display:none"></div>' +
       '<input id="nick" maxlength="20" placeholder="Nickname" autocomplete="off" style="width:100%;box-sizing:border-box;padding:14px;font-size:16px;border-radius:8px;border:1px solid #444;background:#151a20;color:#fff;text-align:center">' +
       '<div id="avs" style="display:flex;gap:8px;margin-top:12px"></div>' +
       '<button id="go" style="width:100%;margin-top:12px;padding:14px;font-size:17px;font-weight:700;border:0;border-radius:8px;background:#e0a030;color:#111">PLAY</button>' +
@@ -25,6 +26,7 @@ export function joinLobby() {
     const AVS = [['vanguard', 'Vanguard', '#c8a46a'], ['irregular', 'Irregular', '#6f8a4a'], ['breacher', 'Breacher', '#7d8ea6']];
     let av = store.get(LS.av);
     if (!AVS.some((a) => a[0] === av)) av = 'vanguard';
+    let prev = null;
     const box = el.querySelector('#avs');
     const paint = () => {
       for (const b of box.children) {
@@ -38,11 +40,18 @@ export function joinLobby() {
       b.dataset.id = id;
       b.style.cssText = 'flex:1;padding:10px 4px;border-radius:8px;border:2px solid #444;color:#eee;font:600 12px system-ui,sans-serif';
       b.innerHTML = '<div style="width:26px;height:40px;border-radius:13px;margin:0 auto 6px;background:' + col + '"></div>' + label;
-      b.onclick = () => { av = id; store.set(LS.av, id); paint(); };
+      b.onclick = () => { av = id; store.set(LS.av, id); paint(); if (prev) prev.set(id); };
       box.appendChild(b);
     }
     paint();
 
+    if (!params.has('nopreview')) {
+      const host = el.querySelector('#prev');
+      import('./preview.js').then((mod) => {
+        host.style.display = 'block';
+        prev = mod.createPreview(host, AVS.map((a) => a[0]), av, (id) => { av = id; store.set(LS.av, id); paint(); });
+      }).catch((err) => { console.warn('[lobby] 3D preview unavailable, using colour buttons:', err?.message ?? err); host.remove(); });
+    }
     const connect = (name, useCred) => {
       const cred = useCred && !fresh ? store.get(LS.cred) : null;
       const queue = [];
@@ -55,7 +64,7 @@ export function joinLobby() {
         let m; try { m = JSON.parse(e.data); } catch { return; }
         if (m.t === 'cred' && !fresh) store.set(LS.cred, m.cred);
         if (m.t === 'welcome' && !joined) {
-          joined = true; store.set(LS.nick, name); el.remove();
+          joined = true; store.set(LS.nick, name); try { if (prev) prev.dispose(); } catch {} el.remove();
           resolve({ ws, welcome: m, seed: m.seed >>> 0, queue });
           return;
         }
