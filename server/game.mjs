@@ -66,6 +66,7 @@ export class Game {
     if (len < 1e-6) return;
     const d = m.d.map((v) => v / len), o = m.o;
     if (Math.hypot(o[0] - pl.p[0], o[1] - (pl.p[1] + EYE), o[2] - pl.p[2]) > 3) return;
+    for (const t of this.players.values()) if (t !== pl) this.send(t, { t: 'shot', id: pl.id, o, d });
     const w = this.physics.raycast(o[0], o[1], o[2], d[0], d[1], d[2], 300);
     const maxT = w.hit ? w.distance : 300;
     let best = null;

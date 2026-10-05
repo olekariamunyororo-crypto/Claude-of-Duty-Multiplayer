@@ -53,7 +53,30 @@ export class NetSystem {
       case 'dmg': return this._hurt(m);
       case 'hit': return this._hitMarker(m);
       case 'kill': return this._kill(m);
+      case 'shot': return this._shot(m);
     }
+  }
+
+  _shot(m) {
+    const r = this.remote.get(m.id);
+    if (!r || !Array.isArray(m.o) || !Array.isArray(m.d)) return;
+    try {
+      const V3 = r.tgt.constructor;
+      const ai = this.ai || this.ctx.peek('ai');
+      const origin = new V3(m.o[0], m.o[1], m.o[2]);
+      const dir = new V3(m.d[0], m.d[1], m.d[2]).normalize();
+      this.ctx.events.emit('weapon:fire', {
+        weapon: 'ak', actor: true, origin, dir,
+        intensity: ai?._flashGain ? ai._flashGain() : 0.4,
+        light: ai?._flashLight ? ai._flashLight() : 0.02,
+        flashScale: 0.8, seed: (m.id * 2654435761 + (this.ctx.time?.frame || 0)) >>> 0,
+      });
+      if (ai?._tracerEvent && ai._tracerFrom && ai._tracerTo) {
+        ai._tracerFrom.copy(origin);
+        ai._tracerTo.copy(origin).addScaledVector(dir, 120);
+        this.ctx.events.emit('bullet:tracer', ai._tracerEvent);
+      }
+    } catch (e) { console.warn('[net] shot fx failed:', e?.message ?? e); }
   }
 
   _snap(list) {
