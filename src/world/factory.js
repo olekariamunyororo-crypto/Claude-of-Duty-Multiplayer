@@ -1,22 +1,14 @@
 /**
- * WORLD — procedural factory combat arena.
+ * WORLD — procedural factory combat arena (expanded).
  *
- * Inspired by the Nik Lever threejs-games-course factory shooter level
- * (factory2.glb + navmesh waypoints), rebuilt entirely from code so it
- * obeys the Claude-of-Duty hard rule: no external models, textures or HDRIs.
- *
- * Layout (LEVEL space, metres):
- *   Hall interior ~50 x 40 m, floor at y=0, walls ~8 m high.
- *   Open ends on +Z / -Z with sand aprons; solid walls on ±X with loading bays.
- *   Four central pillar clusters + catwalks at y≈3.6 for vertical cover.
- *   Machinery blocks, crate stacks, pipe runs and ceiling fans.
- *
- * Spawns form a ring matching the original waypoint scale so multiplayer
- * and AI both have natural fight positions.
+ * Inspired by the Nik Lever factory shooter level, rebuilt with pure geometry.
+ * Hall ~50 x 40 m plus outer yard, continuous perimeter, side rooms with office
+ * furniture, shipping containers, wrecked cars, bikes and industrial clutter.
  */
 
 import * as THREE from 'three';
 import { chamferBox, wallPanel, trs, weatherProp, fillMasks } from './util.js';
+import { burntCar } from './props.js';
 
 const HALL_W = 50;
 const HALL_D = 40;
@@ -24,6 +16,7 @@ const WALL_H = 8;
 const WALL_T = 0.45;
 const CATWALK_Y = 3.55;
 const CATWALK_W = 2.4;
+const YARD = 12;
 
 /** Spawn points in LEVEL space: [x, z, yaw, tag]. */
 export const FACTORY_SPAWNS = [
@@ -39,18 +32,20 @@ export const FACTORY_SPAWNS = [
   [8, 5, -Math.PI * 0.5, 'ne platform'],
   [-8, 5, Math.PI * 0.5, 'nw platform'],
   [0, -8, 0, 'centre south'],
+  [22, 14, -Math.PI * 0.5, 'ne yard'],
+  [-22, -16, Math.PI * 0.5, 'sw yard'],
 ];
 
 const _m = new THREE.Matrix4();
 
-/**
- * Build the entire factory into the Assembler.
- * @returns {{ spawns, bounds, fans }}
- */
 export function buildFactory(A, rng) {
   const fans = [];
+  _registerExtraProtos(A, rng);
+
   _floor(A, rng);
+  _perimeter(A, rng);
   _walls(A, rng);
+  _rooms(A, rng);
   _pillars(A, rng);
   _catwalks(A, rng);
   _beams(A, rng);
@@ -58,10 +53,18 @@ export function buildFactory(A, rng) {
   _crates(A, rng);
   _pipes(A, rng);
   _ceilingFans(A, rng, fans);
+  _yardProps(A, rng);
   _lightAnchors(A);
+
+  const extent = HALL_W / 2 + YARD + 2;
   return {
     spawns: FACTORY_SPAWNS,
-    bounds: { minX: -HALL_W / 2 - 4, maxX: HALL_W / 2 + 4, minZ: -HALL_D / 2 - 6, maxZ: HALL_D / 2 + 6 },
+    bounds: {
+      minX: -extent,
+      maxX: extent,
+      minZ: -HALL_D / 2 - YARD - 2,
+      maxZ: HALL_D / 2 + YARD + 2,
+    },
     fans,
   };
 }
@@ -71,25 +74,86 @@ export function factoryGroundY(_x, _z) {
 }
 
 export function factoryIsOpen(x, z, margin = 0.4) {
-  const hw = HALL_W / 2 - margin;
-  const hd = HALL_D / 2 - margin;
-  return Math.abs(x) < hw + 4 && Math.abs(z) < hd + 6;
+  const e = HALL_W / 2 + YARD - margin;
+  const d = HALL_D / 2 + YARD - margin;
+  return Math.abs(x) < e && Math.abs(z) < d;
+}
+
+function _registerExtraProtos(A, rng) {
+  if (!A.has('burnt_car')) {
+    const g = burntCar(rng);
+    A.proto('burnt_car', { geo: g, key: 'metal_rust', tilt: 0.03, sink: 0.04, skirt: 1.1, chunk: false });
+  }
+  if (!A.has('ship_container')) {
+    A.proto('ship_container', {
+      geo: _shippingContainer(),
+      key: 'metal_blue',
+      tilt: 0,
+      sink: 0,
+      skirt: 1.4,
+      chunk: false,
+    });
+  }
+  if (!A.has('ship_container_rust')) {
+    A.proto('ship_container_rust', {
+      geo: _shippingContainer(),
+      key: 'metal_rust',
+      tilt: 0.01,
+      sink: 0.02,
+      skirt: 1.4,
+      chunk: false,
+    });
+  }
+  if (!A.has('fac_bike')) {
+    A.proto('fac_bike', {
+      geo: _bike(),
+      key: 'metal_dark',
+      tilt: 0.12,
+      sink: 0.01,
+      skirt: 0.35,
+    });
+  }
+}
+
+function _shippingContainer() {
+  const L = 6.05;
+  const W = 2.44;
+  const H = 2.59;
+  const shell = chamferBox(W, H, L, 0.04);
+  weatherProp(shell, { base: 0.35, wear: 0.55, height: H });
+  shell.translate(0, H / 2, 0);
+  return shell;
+}
+
+function _bike() {
+  const frame = chamferBox(0.08, 0.55, 1.55, 0.01);
+  fillMasks(frame, 0.2, 0.25, 0.15);
+  frame.translate(0, 0.35, 0);
+  return frame;
 }
 
 function _floor(A, rng) {
   const hw = HALL_W / 2;
   const hd = HALL_D / 2;
+
   const slab = chamferBox(HALL_W + 2, 0.28, HALL_D + 2, 0.01);
   weatherProp(slab, { base: 0.35, wear: 0.5, grime: 0.4, height: 0.3 });
   A.addOnce('floor_concrete', slab, trs(_m, 0, -0.14, 0));
   A.box('concrete', 0, -0.14, 0, HALL_W + 2, 0.28, HALL_D + 2);
+
+  const yard = chamferBox(HALL_W + YARD * 2, 0.2, HALL_D + YARD * 2, 0.01);
+  weatherProp(yard, { base: 0.25, wear: 0.35, grime: 0.3, height: 0.2 });
+  A.addOnce('concrete_dark', yard, trs(_m, 0, -0.2, 0));
+  A.box('concrete', 0, -0.2, 0, HALL_W + YARD * 2, 0.2, HALL_D + YARD * 2);
+
   for (const z of [-hd - 3, hd + 3]) {
     const sand = chamferBox(HALL_W + 8, 0.18, 8, 0.01);
     weatherProp(sand, { base: 0.2, wear: 0.3, grime: 0.2, height: 0.2 });
     A.addOnce('sand', sand, trs(_m, 0, -0.08, z));
     A.box('sand', 0, -0.08, z, HALL_W + 8, 0.18, 8);
   }
-  for (let i = 0; i < 6; i++) {
+
+  for (let i = 0; i < 8; i++) {
     const x = rng.range(-hw + 4, hw - 4);
     const z = rng.range(-hd + 4, hd - 4);
     const gw = rng.range(2.5, 4.5);
@@ -100,14 +164,67 @@ function _floor(A, rng) {
   }
 }
 
+function _perimeter(A, rng) {
+  const e = HALL_W / 2 + YARD;
+  const d = HALL_D / 2 + YARD;
+  const h = 3.2;
+  const t = 0.35;
+  const gateW = 6;
+
+  for (const side of [-1, 1]) {
+    const len = e - gateW / 2;
+    const cx = side * (gateW / 2 + len / 2);
+    const panel = wallPanel(len, h, t, [], { bevel: 0.02, rng });
+    A.addOnce('concrete_dark', panel, trs(_m, cx, 0, d));
+    A.box('concrete', cx, h / 2, d, len, h, t);
+  }
+  for (const side of [-1, 1]) {
+    const len = e - gateW / 2;
+    const cx = side * (gateW / 2 + len / 2);
+    const panel = wallPanel(len, h, t, [], { bevel: 0.02, rng });
+    A.addOnce('concrete_dark', panel, trs(_m, cx, 0, -d, Math.PI));
+    A.box('concrete', cx, h / 2, -d, len, h, t);
+  }
+  for (const side of [-1, 1]) {
+    const x = side * e;
+    const panel = wallPanel(d * 2, h, t, [], { bevel: 0.02, rng });
+    A.addOnce('concrete_dark', panel, trs(_m, x, 0, 0, side > 0 ? -Math.PI / 2 : Math.PI / 2));
+    A.box('concrete', x, h / 2, 0, t, h, d * 2);
+  }
+
+  for (const z of [-d, d]) {
+    for (const x of [-gateW / 2, gateW / 2]) {
+      const post = chamferBox(0.45, h + 0.8, 0.45, 0.03);
+      weatherProp(post, { base: 0.3, wear: 0.6, height: h });
+      A.addOnce('concrete', post, trs(_m, x, (h + 0.8) / 2, z));
+      A.box('concrete', x, (h + 0.8) / 2, z, 0.45, h + 0.8, 0.45);
+    }
+  }
+
+  for (const z of [-d, d]) {
+    for (const side of [-1, 1]) {
+      const len = e - gateW / 2;
+      const cx = side * (gateW / 2 + len / 2);
+      const rail = chamferBox(len, 0.06, 0.06, 0.005);
+      fillMasks(rail, 0.2, 0.3, 0.15);
+      A.addOnce('steel', rail, trs(_m, cx, h + 0.15, z));
+    }
+  }
+}
+
 function _walls(A, rng) {
   const hw = HALL_W / 2;
   const hd = HALL_D / 2;
   const t = WALL_T;
   const h = WALL_H;
+
   for (const side of [-1, 1]) {
     const x = side * (hw + t / 2);
-    const segs = [{ z0: -hd, z1: -8 }, { z0: -4, z1: 4 }, { z0: 8, z1: hd }];
+    const segs = [
+      { z0: -hd, z1: -8 },
+      { z0: -4, z1: 4 },
+      { z0: 8, z1: hd },
+    ];
     for (const s of segs) {
       const len = s.z1 - s.z0;
       const cz = (s.z0 + s.z1) / 2;
@@ -122,6 +239,7 @@ function _walls(A, rng) {
       A.box('concrete', x, h - 0.4, bz, t + 0.2, 0.5, 4.5);
     }
   }
+
   for (const side of [-1, 1]) {
     const z = side * (hd + t / 2);
     for (const sx of [-1, 1]) {
@@ -132,6 +250,7 @@ function _walls(A, rng) {
       A.box('concrete', cx, (h * 0.7) / 2, z, len, h * 0.7, t, side > 0 ? Math.PI : 0);
     }
   }
+
   for (const x of [-hw, hw]) {
     for (const z of [-hd, hd]) {
       const col = chamferBox(1.1, h + 0.5, 1.1, 0.04);
@@ -140,6 +259,67 @@ function _walls(A, rng) {
       A.box('concrete', x, (h + 0.5) / 2 - 0.1, z, 1.1, h + 0.5, 1.1);
     }
   }
+}
+
+function _rooms(A, rng) {
+  const hw = HALL_W / 2;
+  const rooms = [
+    { x: -hw + 3.5, z: -14, w: 6, d: 5, ry: 0 },
+    { x: -hw + 3.5, z: 0, w: 6, d: 5, ry: 0 },
+    { x: -hw + 3.5, z: 14, w: 6, d: 5, ry: 0 },
+    { x: hw - 3.5, z: -14, w: 6, d: 5, ry: Math.PI },
+    { x: hw - 3.5, z: 0, w: 6, d: 5, ry: Math.PI },
+    { x: hw - 3.5, z: 14, w: 6, d: 5, ry: Math.PI },
+  ];
+  for (const r of rooms) _buildRoom(A, rng, r);
+}
+
+function _buildRoom(A, rng, r) {
+  const h = 3.2;
+  const t = 0.25;
+  const openToward = r.x > 0 ? -1 : 1;
+  const backX = r.x - openToward * (r.w / 2);
+
+  {
+    const panel = wallPanel(r.d, h, t, [{ x: 0, y: 1.6, w: 1.2, h: 1.0 }], { bevel: 0.02, rng });
+    A.addOnce('concrete', panel, trs(_m, backX, 0, r.z, openToward > 0 ? Math.PI / 2 : -Math.PI / 2));
+    A.box('concrete', backX, h / 2, r.z, t, h, r.d);
+  }
+  for (const sz of [-1, 1]) {
+    const z = r.z + sz * (r.d / 2);
+    const panel = wallPanel(r.w, h, t, [], { bevel: 0.02, rng });
+    A.addOnce('concrete', panel, trs(_m, r.x, 0, z, sz > 0 ? Math.PI : 0));
+    A.box('concrete', r.x, h / 2, z, r.w, h, t);
+  }
+
+  const floor = chamferBox(r.w - 0.1, 0.08, r.d - 0.1, 0.005);
+  fillMasks(floor, 0.1, 0.2, 0.15);
+  A.addOnce('floor_concrete', floor, trs(_m, r.x, 0.04, r.z));
+
+  const inward = openToward;
+  const deskX = r.x + inward * 0.5;
+  if (A.has('table_small')) {
+    A.put('table_small', deskX, 0, r.z, r.ry + Math.PI / 2);
+    A.box('wood', deskX, 0.36, r.z, 0.9, 0.72, 0.7);
+  }
+  if (A.has('chair')) {
+    A.put('chair', deskX + inward * 0.7, 0, r.z - 0.5, r.ry);
+    A.put('chair', deskX + inward * 0.7, 0, r.z + 0.5, r.ry);
+  }
+  if (A.has('shelf')) {
+    A.put('shelf', backX + inward * 0.4, 0, r.z - 1.2, r.ry + Math.PI / 2);
+    A.box('wood', backX + inward * 0.4, 0.95, r.z - 1.2, 1.1, 1.9, 0.35);
+  }
+  if (A.has('cabinet')) {
+    A.put('cabinet', backX + inward * 0.35, 0, r.z + 1.4, r.ry + Math.PI / 2);
+    A.box('wood', backX + inward * 0.35, 0.57, r.z + 1.4, 0.9, 1.15, 0.44);
+  }
+  if (A.has('box_card_a')) {
+    for (let i = 0; i < 3; i++) {
+      A.put('box_card_a', r.x + rng.range(-1.5, 1.5), 0, r.z + rng.range(-1.5, 1.5), rng.range(0, Math.PI));
+    }
+  }
+  A.interiorLights.push({ x: r.x, y: h - 0.3, z: r.z });
 }
 
 function _pillars(A, rng) {
@@ -250,18 +430,9 @@ function _machinery(A, rng) {
 }
 
 function _crates(A, rng) {
-  if (!A.has('fac_crate')) {
-    const c = chamferBox(1, 1, 1, 0.025);
-    weatherProp(c, { base: 0.3, wear: 0.55, height: 1 });
-    A.proto('fac_crate', { geo: c, key: 'wood_prop', tilt: 0.04, sink: 0.02, skirt: 0.55 });
-  }
-  if (!A.has('fac_barrel')) {
-    const b = chamferBox(0.7, 1.05, 0.7, 0.03);
-    weatherProp(b, { base: 0.25, wear: 0.6, height: 1.05 });
-    A.proto('fac_barrel', { geo: b, key: 'metal_rust_prop', tilt: 0.06, sink: 0.02, skirt: 0.4 });
-  }
   A.jitter = { rng, yaw: 0.15, scale: 0.08 };
   A.skirts = true;
+
   const stacks = [[-16, -14], [16, 12], [-10, 16], [10, -18], [3, -3], [-15, 8], [18, -8]];
   for (const [sx, sz] of stacks) {
     const rows = rng.int(2, 4);
@@ -270,20 +441,38 @@ function _crates(A, rng) {
       for (let c = 0; c < cols; c++) {
         const h = rng.int(1, 3);
         for (let k = 0; k < h; k++) {
-          const s = rng.range(0.85, 1.15);
-          A.put('fac_crate', sx + c * 1.15, k * s + s / 2, sz + r * 1.15, rng.range(0, 0.3), s);
-          A.box('wood', sx + c * 1.15, k * s + s / 2, sz + r * 1.15, s, s, s);
+          const id = rng.float() < 0.5 ? 'crate_a' : 'crate_c';
+          if (!A.has(id)) continue;
+          const s = rng.range(0.9, 1.1);
+          A.put(id, sx + c * 1.15, 0, sz + r * 1.15, rng.range(0, 0.3), s);
+          A.box('wood', sx + c * 1.15, 0.35 * (k + 1), sz + r * 1.15, 0.7, 0.7, 0.7);
         }
       }
     }
   }
-  for (let i = 0; i < 18; i++) {
+
+  for (let i = 0; i < 22; i++) {
     const x = rng.range(-20, 20);
     const z = rng.range(-18, 18);
     if (Math.hypot(x, z) < 4) continue;
-    A.put('fac_barrel', x, 0.52, z, rng.range(0, Math.PI));
-    A.box('metal', x, 0.52, z, 0.7, 1.05, 0.7);
+    const id = rng.float() < 0.5 ? 'barrel_rust' : 'barrel_blue';
+    if (A.has(id)) {
+      A.put(id, x, 0, z, rng.range(0, Math.PI));
+      A.box('metal', x, 0.45, z, 0.6, 0.9, 0.6);
+    }
   }
+
+  if (A.has('pallet')) {
+    for (let i = 0; i < 8; i++) {
+      A.put('pallet', rng.range(-18, 18), 0, rng.range(-16, 16), rng.range(0, Math.PI));
+    }
+  }
+  if (A.has('tyre')) {
+    for (let i = 0; i < 12; i++) {
+      A.put('tyre', rng.range(-20, 20), 0, rng.range(-18, 18), rng.range(0, Math.PI));
+    }
+  }
+
   A.jitter = null;
 }
 
@@ -328,11 +517,84 @@ function _ceilingFans(A, rng, fansOut) {
   }
 }
 
-/** Register practical light anchors only — WorldSystem._addLights creates the PointLights. */
+function _yardProps(A, rng) {
+  A.jitter = { rng, yaw: 0.08, scale: 0.04 };
+  A.skirts = true;
+
+  const containers = [
+    { x: -28, z: -8, ry: 0.1, rust: false },
+    { x: -28, z: -15, ry: 0.05, rust: true },
+    { x: 28, z: 10, ry: Math.PI / 2 + 0.08, rust: false },
+    { x: 28, z: 3, ry: Math.PI / 2, rust: true },
+    { x: -22, z: 22, ry: 0.2, rust: true },
+    { x: 18, z: -26, ry: -0.15, rust: false },
+  ];
+  for (const c of containers) {
+    const id = c.rust ? 'ship_container_rust' : 'ship_container';
+    if (A.has(id)) {
+      A.put(id, c.x, 0, c.z, c.ry);
+      A.box('metal', c.x, 1.3, c.z, 2.44, 2.59, 6.05, c.ry);
+    }
+  }
+
+  const cars = [
+    { x: 24, z: -12, ry: 0.4 },
+    { x: -24, z: 8, ry: -1.1 },
+    { x: 10, z: 26, ry: 2.2 },
+    { x: -8, z: -28, ry: 0.7 },
+  ];
+  for (const c of cars) {
+    if (A.has('burnt_car')) {
+      A.put('burnt_car', c.x, 0, c.z, c.ry);
+      A.box('metal', c.x, 0.7, c.z, 1.8, 1.4, 4.4, c.ry);
+    }
+  }
+
+  if (A.has('fac_bike')) {
+    for (let i = 0; i < 6; i++) {
+      const side = rng.float() < 0.5 ? -1 : 1;
+      A.put(
+        'fac_bike',
+        side * (HALL_W / 2 + 2 + rng.range(0, 4)),
+        0,
+        rng.range(-HALL_D / 2, HALL_D / 2),
+        rng.range(0, Math.PI)
+      );
+    }
+  }
+
+  if (A.has('jersey')) {
+    for (const z of [-HALL_D / 2 - YARD + 2, HALL_D / 2 + YARD - 2]) {
+      for (const x of [-5, 5]) {
+        A.put('jersey', x, 0, z, 0);
+        A.box('concrete', x, 0.45, z, 0.6, 0.9, 1.9);
+      }
+    }
+  }
+
+  for (let i = 0; i < 10; i++) {
+    const x = rng.range(-30, 30);
+    const z = rng.range(-28, 28);
+    if (Math.abs(x) < 18 && Math.abs(z) < 16) continue;
+    if (A.has('gas_bottle') && rng.float() < 0.4) A.put('gas_bottle', x, 0, z, rng.range(0, Math.PI));
+    else if (A.has('jerry_can') && rng.float() < 0.5) A.put('jerry_can', x, 0, z, rng.range(0, Math.PI));
+    else if (A.has('bucket')) A.put('bucket', x, 0, z, rng.range(0, Math.PI));
+  }
+
+  A.jitter = null;
+}
+
 function _lightAnchors(A) {
   const positions = [
-    [-12, 6, -10], [12, 6, -10], [-12, 6, 10], [12, 6, 10],
-    [0, 6.5, 0], [-6, 5.5, -16], [6, 5.5, 14],
+    [-12, 6, -10],
+    [12, 6, -10],
+    [-12, 6, 10],
+    [12, 6, 10],
+    [0, 6.5, 0],
+    [-6, 5.5, -16],
+    [6, 5.5, 14],
+    [-20, 4, 0],
+    [20, 4, 0],
   ];
   for (const [x, y, z] of positions) {
     A.interiorLights.push({ x, y, z });
