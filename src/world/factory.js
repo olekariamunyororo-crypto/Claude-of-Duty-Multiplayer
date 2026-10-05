@@ -42,38 +42,25 @@ export const FACTORY_SPAWNS = [
 ];
 
 const _m = new THREE.Matrix4();
-const _geoBox = () => chamferBox(1, 1, 1, 0.02);
-const _plain = () => plainBox();
 
 /**
  * Build the entire factory into the Assembler.
  * @param {import('./builder.js').Assembler} A
  * @param {*} rng  forked seeded RNG
- * @returns {{ spawns: Array, bounds: {minX,maxX,minZ,maxZ}, fans: THREE.Object3D[] }}
+ * @returns {{ spawns: Array, bounds: {minX,maxX,minZ,maxZ}, fans: object[] }}
  */
 export function buildFactory(A, rng) {
   const fans = [];
 
-  // ------------------------------------------------------------------ floor --
   _floor(A, rng);
-
-  // ----------------------------------------------------------- perimeter --
   _walls(A, rng);
-
-  // --------------------------------------------------------------- structure --
   _pillars(A, rng);
   _catwalks(A, rng);
   _beams(A, rng);
-
-  // ------------------------------------------------------------------ cover --
   _machinery(A, rng);
   _crates(A, rng);
   _pipes(A, rng);
-
-  // ------------------------------------------------------------------- fans --
   _ceilingFans(A, rng, fans);
-
-  // ---------------------------------------------------------------- lighting --
   _lights(A);
 
   return {
@@ -83,18 +70,28 @@ export function buildFactory(A, rng) {
   };
 }
 
+/** Analytic floor height for the factory (flat slab at 0). */
+export function factoryGroundY(_x, _z) {
+  return 0;
+}
+
+/** True where a character can stand (inside the hall footprint). */
+export function factoryIsOpen(x, z, margin = 0.4) {
+  const hw = HALL_W / 2 - margin;
+  const hd = HALL_D / 2 - margin;
+  return Math.abs(x) < hw + 4 && Math.abs(z) < hd + 6;
+}
+
 // ================================================================== floor ==
 function _floor(A, rng) {
   const hw = HALL_W / 2;
   const hd = HALL_D / 2;
 
-  // Main concrete slab
   const slab = chamferBox(HALL_W + 2, 0.28, HALL_D + 2, 0.01);
   weatherProp(slab, { base: 0.35, wear: 0.5, grime: 0.4, height: 0.3 });
   A.addOnce('floor_concrete', slab, trs(_m, 0, -0.14, 0));
   A.box('concrete', 0, -0.14, 0, HALL_W + 2, 0.28, HALL_D + 2);
 
-  // Sand aprons at open north/south ends
   for (const z of [-hd - 3, hd + 3]) {
     const sand = chamferBox(HALL_W + 8, 0.18, 8, 0.01);
     weatherProp(sand, { base: 0.2, wear: 0.3, grime: 0.2, height: 0.2 });
@@ -102,7 +99,6 @@ function _floor(A, rng) {
     A.box('sand', 0, -0.08, z, HALL_W + 8, 0.18, 8);
   }
 
-  // Grating patches (visual only — same collision as floor)
   for (let i = 0; i < 6; i++) {
     const x = rng.range(-hw + 4, hw - 4);
     const z = rng.range(-hd + 4, hd - 4);
@@ -121,10 +117,8 @@ function _walls(A, rng) {
   const t = WALL_T;
   const h = WALL_H;
 
-  // East & west solid walls with loading-bay openings
   for (const side of [-1, 1]) {
     const x = side * (hw + t / 2);
-    // Three segments with two bay openings
     const segs = [
       { z0: -hd, z1: -8 },
       { z0: -4, z1: 4 },
@@ -137,7 +131,6 @@ function _walls(A, rng) {
       A.addOnce('concrete_dark', panel, trs(_m, x, 0, cz, side > 0 ? -Math.PI / 2 : Math.PI / 2));
       A.box('concrete', x, h / 2, cz, t, h, len, side > 0 ? -Math.PI / 2 : Math.PI / 2);
     }
-    // Lintels over bays
     for (const bz of [-6, 6]) {
       const lintel = chamferBox(t + 0.2, 0.5, 4.5, 0.02);
       weatherProp(lintel, { base: 0.3, wear: 0.7 });
@@ -146,7 +139,6 @@ function _walls(A, rng) {
     }
   }
 
-  // North & south — partial walls (open centre for entries)
   for (const side of [-1, 1]) {
     const z = side * (hd + t / 2);
     for (const sx of [-1, 1]) {
@@ -158,7 +150,6 @@ function _walls(A, rng) {
     }
   }
 
-  // Corner columns
   for (const x of [-hw, hw]) {
     for (const z of [-hd, hd]) {
       const col = chamferBox(1.1, h + 0.5, 1.1, 0.04);
@@ -171,7 +162,6 @@ function _walls(A, rng) {
 
 // ================================================================= pillars ==
 function _pillars(A, rng) {
-  // Four clusters of structural pillars — primary cover
   const clusters = [
     [-8, -6],
     [8, -6],
@@ -201,16 +191,13 @@ function _catwalks(A, rng) {
   const y = CATWALK_Y;
   const w = CATWALK_W;
 
-  // Side catwalks along ±X interior
   for (const side of [-1, 1]) {
     const x = side * (hw - w / 2 - 0.8);
-    // Deck
     const deck = chamferBox(w, 0.12, HALL_D - 6, 0.01);
     fillMasks(deck, 0.2, 0.4, 0.25);
     A.addOnce('steel', deck, trs(_m, x, y, 0));
     A.box('metal', x, y, 0, w, 0.12, HALL_D - 6);
 
-    // Railing posts + rail
     const posts = 10;
     for (let i = 0; i <= posts; i++) {
       const z = -((HALL_D - 6) / 2) + (i / posts) * (HALL_D - 6);
@@ -222,7 +209,6 @@ function _catwalks(A, rng) {
     fillMasks(rail, 0.25, 0.2, 0.1);
     A.addOnce('steel', rail, trs(_m, x - side * (w / 2 - 0.1), y + 1.05, 0));
 
-    // Supports under deck
     for (let i = 0; i < 6; i++) {
       const z = -((HALL_D - 8) / 2) + (i / 5) * (HALL_D - 8);
       const leg = chamferBox(0.15, y, 0.15, 0.01);
@@ -232,7 +218,6 @@ function _catwalks(A, rng) {
     }
   }
 
-  // Cross bridges
   for (const z of [-10, 0, 10]) {
     const bridge = chamferBox(HALL_W - 6, 0.12, 1.8, 0.01);
     fillMasks(bridge, 0.2, 0.35, 0.2);
@@ -247,7 +232,6 @@ function _beams(A, rng) {
   const hd = HALL_D / 2;
   const y = WALL_H - 0.4;
 
-  // Longitudinal roof beams
   for (let i = 0; i < 5; i++) {
     const x = -hw + 4 + (i / 4) * (HALL_W - 8);
     const beam = chamferBox(0.35, 0.5, HALL_D - 2, 0.02);
@@ -255,7 +239,6 @@ function _beams(A, rng) {
     A.addOnce('metal_dark', beam, trs(_m, x, y, 0));
     A.box('metal', x, y, 0, 0.35, 0.5, HALL_D - 2);
   }
-  // Cross beams
   for (let i = 0; i < 6; i++) {
     const z = -hd + 3 + (i / 5) * (HALL_D - 6);
     const beam = chamferBox(HALL_W - 2, 0.35, 0.35, 0.02);
@@ -267,7 +250,6 @@ function _beams(A, rng) {
 
 // ============================================================== machinery ==
 function _machinery(A, rng) {
-  // Large industrial blocks as hard cover
   const blocks = [
     { x: -14, z: 2, sx: 3.2, sy: 2.4, sz: 2.8 },
     { x: 14, z: -4, sx: 2.8, sy: 2.8, sz: 3.5 },
@@ -282,19 +264,16 @@ function _machinery(A, rng) {
     A.addOnce('metal_rust', body, trs(_m, b.x, b.sy / 2, b.z));
     A.box('metal', b.x, b.sy / 2, b.z, b.sx, b.sy, b.sz);
 
-    // Control panel / detail box on top or side
-    if (rng.chance(0.7)) {
+    if (rng.float() < 0.7) {
       const d = chamferBox(b.sx * 0.4, 0.5, b.sz * 0.3, 0.02);
       fillMasks(d, 0.2, 0.3, 0.2);
       A.addOnce('metal_dark', d, trs(_m, b.x + rng.range(-0.3, 0.3), b.sy + 0.25, b.z));
     }
   }
 
-  // Low cover walls (waist-high)
   for (let i = 0; i < 8; i++) {
     const x = rng.range(-18, 18);
     const z = rng.range(-16, 16);
-    // avoid centre spawn
     if (Math.hypot(x, z) < 5) continue;
     const w = rng.range(2.0, 4.0);
     const d = rng.range(0.35, 0.55);
@@ -309,14 +288,12 @@ function _machinery(A, rng) {
 
 // ================================================================== crates ==
 function _crates(A, rng) {
-  // Register crate prototypes once
   if (!A.has('fac_crate')) {
     const c = chamferBox(1, 1, 1, 0.025);
     weatherProp(c, { base: 0.3, wear: 0.55, height: 1 });
     A.proto('fac_crate', { geo: c, key: 'wood_prop', tilt: 0.04, sink: 0.02, skirt: 0.55 });
   }
   if (!A.has('fac_barrel')) {
-    // Approximate barrel as chamfered cylinder-ish box for simplicity
     const b = chamferBox(0.7, 1.05, 0.7, 0.03);
     weatherProp(b, { base: 0.25, wear: 0.6, height: 1.05 });
     A.proto('fac_barrel', { geo: b, key: 'metal_rust_prop', tilt: 0.06, sink: 0.02, skirt: 0.4 });
@@ -325,7 +302,6 @@ function _crates(A, rng) {
   A.jitter = { rng, yaw: 0.15, scale: 0.08 };
   A.skirts = true;
 
-  // Crate stacks
   const stacks = [
     [-16, -14],
     [16, 12],
@@ -350,7 +326,6 @@ function _crates(A, rng) {
     }
   }
 
-  // Scattered barrels
   for (let i = 0; i < 18; i++) {
     const x = rng.range(-20, 20);
     const z = rng.range(-18, 18);
@@ -366,14 +341,12 @@ function _crates(A, rng) {
 function _pipes(A, rng) {
   const hw = HALL_W / 2;
 
-  // Horizontal pipe runs along walls at mid height
   for (const side of [-1, 1]) {
     const x = side * (hw - 0.9);
     for (const y of [2.2, 5.5]) {
       const pipe = chamferBox(0.28, 0.28, HALL_D - 8, 0.02);
       fillMasks(pipe, 0.15, 0.4, 0.2);
       A.addOnce('metal_rust', pipe, trs(_m, x, y, 0));
-      // Vertical drops
       for (let i = 0; i < 3; i++) {
         const z = -12 + i * 12;
         const drop = chamferBox(0.22, y - 0.3, 0.22, 0.015);
@@ -383,7 +356,6 @@ function _pipes(A, rng) {
     }
   }
 
-  // Overhead conduit across ceiling
   for (let i = 0; i < 3; i++) {
     const z = -10 + i * 10;
     const conduit = chamferBox(HALL_W - 10, 0.2, 0.2, 0.01);
@@ -403,19 +375,12 @@ function _ceilingFans(A, rng, fansOut) {
   ];
   for (const [fx, fz] of positions) {
     const y = WALL_H - 1.5;
-    // Hub
     const hub = chamferBox(0.5, 0.35, 0.5, 0.02);
     fillMasks(hub, 0.2, 0.25, 0.15);
     A.addOnce('metal_dark', hub, trs(_m, fx, y, fz));
 
-    // Blades as a single rotating group (visual only — no collision)
-    // We can't easily add animated Object3D through Assembler static merge,
-    // so blades are static for now; animation can hook via returned fan list
-    // by placing marker positions. Store positions for WorldSystem to spin
-    // simple decal-free blade meshes if desired.
     fansOut.push({ x: fx, y, z: fz });
 
-    // Static blade cross for silhouette
     for (let a = 0; a < 4; a++) {
       const ry = (a / 4) * Math.PI * 2;
       const blade = chamferBox(2.8, 0.06, 0.35, 0.01);
@@ -427,7 +392,6 @@ function _ceilingFans(A, rng, fansOut) {
 
 // ================================================================== lights ==
 function _lights(A) {
-  // Industrial hanging lamps — warm practicals
   const positions = [
     [-12, 6, -10],
     [12, 6, -10],
