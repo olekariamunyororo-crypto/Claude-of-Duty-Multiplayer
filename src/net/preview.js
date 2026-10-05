@@ -15,18 +15,18 @@ export function createPreview(host, ids, initial, onPick) {
   const h = Math.max(160, host.clientHeight || 220);
   host.style.background = 'radial-gradient(ellipse at 50% 70%, #26303b 0%, #12161b 70%)';
   const canvas = document.createElement('canvas');
-  canvas.style.cssText = 'width:100%;height:100%;display:block;touch-action:none;cursor:grab';
+  canvas.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%;display:block;touch-action:none;cursor:grab';
   host.appendChild(canvas);
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'low-power' });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
   renderer.setSize(w, h, false);
   console.info('[preview] renderer ready, webgl2=' + renderer.capabilities.isWebGL2 + ' size ' + w + 'x' + h);
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
 
   const scene = new THREE.Scene();
   const cam = new THREE.PerspectiveCamera(28, w / h, 0.1, 50);
-  cam.position.set(0, 1.15, 4.6);
-  cam.lookAt(0, 0.98, 0);
+  cam.position.set(0, 1.0, 4.4);
+  cam.lookAt(0, 0.92, 0);
   try {
     const pm = new THREE.PMREMGenerator(renderer);
     scene.environment = pm.fromScene(new RoomEnvironment(), 0.04).texture;
@@ -45,7 +45,7 @@ export function createPreview(host, ids, initial, onPick) {
   ring.rotation.x = -Math.PI / 2; ring.position.y = 0.004; scene.add(ring);
 
   const label = document.createElement('div');
-  label.style.cssText = 'position:absolute;left:0;right:0;bottom:8px;text-align:center;font:600 13px system-ui,sans-serif;color:#f1d9a8;text-shadow:0 1px 3px #000;pointer-events:none';
+  label.style.cssText = 'position:absolute;left:0;right:0;bottom:1.2vh;text-align:center;font:600 clamp(13px,2.8vw,26px) system-ui,sans-serif;color:#f1d9a8;text-shadow:0 1px 3px #000;pointer-events:none';
   host.appendChild(label);
 
   let dead = false, cur = null, curId = initial, raf = 0, rotY = 0.6, idleUntil = 0, dragging = false, lastX = 0, building = 0;
@@ -116,7 +116,7 @@ export function createPreview(host, ids, initial, onPick) {
   const arrow = (txt, side, dir) => {
     const b = document.createElement('button');
     b.textContent = txt;
-    b.style.cssText = 'position:absolute;top:50%;' + side + ':6px;transform:translateY(-50%);width:36px;height:48px;border:0;border-radius:8px;background:rgba(0,0,0,.35);color:#fff;font:700 22px system-ui,sans-serif';
+    b.style.cssText = 'position:absolute;top:50%;' + side + ':6px;transform:translateY(-50%);width:clamp(36px,7vw,72px);height:clamp(48px,10vw,100px);border:0;border-radius:10px;background:rgba(0,0,0,.35);color:#fff;font:700 clamp(22px,4.4vw,44px) system-ui,sans-serif';
     b.onclick = () => step(dir);
     host.appendChild(b);
   };
@@ -129,6 +129,14 @@ export function createPreview(host, ids, initial, onPick) {
   canvas.addEventListener('pointerup', up);
   canvas.addEventListener('pointercancel', up);
 
+  const onResize = () => {
+    if (dead) return;
+    const nw = Math.max(200, host.clientWidth), nh = Math.max(160, host.clientHeight);
+    renderer.setSize(nw, nh, false);
+    cam.aspect = nw / nh;
+    cam.updateProjectionMatrix();
+  };
+  window.addEventListener('resize', onResize);
   let last = performance.now();
   function frame(now) {
     if (dead) return;
@@ -156,6 +164,7 @@ export function createPreview(host, ids, initial, onPick) {
     if (dead) return;
     dead = true;
     cancelAnimationFrame(raf);
+    window.removeEventListener('resize', onResize);
     for (const e of cache.values()) {
       try {
         e.group.removeFromParent();
@@ -173,6 +182,7 @@ export function createPreview(host, ids, initial, onPick) {
     label.remove();
   }
 
+  requestAnimationFrame(onResize);
   show(initial);
   return { set: show, dispose };
 }

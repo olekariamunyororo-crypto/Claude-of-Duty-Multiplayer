@@ -14,13 +14,13 @@ export function joinLobby() {
   return new Promise((resolve) => {
     const el = document.createElement('div');
     el.style.cssText = 'position:fixed;inset:0;z-index:20000;display:flex;align-items:center;justify-content:center;background:#0b0d10;color:#e8e8e8;font:16px system-ui,sans-serif';
-    el.innerHTML = '<div style="width:min(86vw,340px);text-align:center">' +
-      '<div style="font-size:26px;font-weight:700;letter-spacing:.06em;margin-bottom:18px">CLAUDE OF DUTY<br>MULTIPLAYER</div>' +
-      '<div id="prev" style="position:relative;height:220px;margin:0 0 12px;border-radius:10px;overflow:hidden;display:none"></div>' +
-      '<input id="nick" maxlength="20" placeholder="Nickname" autocomplete="off" style="width:100%;box-sizing:border-box;padding:14px;font-size:16px;border-radius:8px;border:1px solid #444;background:#151a20;color:#fff;text-align:center">' +
-      '<div id="avs" style="display:flex;gap:8px;margin-top:12px"></div>' +
-      '<button id="go" style="width:100%;margin-top:12px;padding:14px;font-size:17px;font-weight:700;border:0;border-radius:8px;background:#e0a030;color:#111">PLAY</button>' +
-      '<div id="msg" style="margin-top:14px;min-height:20px;font-size:14px;opacity:.8"></div></div>';
+    el.innerHTML = '<div style="width:min(94vw,900px);height:100%;display:flex;flex-direction:column;box-sizing:border-box;padding:1.5vh 0;text-align:center">' +
+      '<div style="flex:none;font-size:clamp(26px,6vw,60px);font-weight:700;letter-spacing:.06em;margin-bottom:1.2vh">CLAUDE OF DUTY<br>MULTIPLAYER</div>' +
+      '<div id="prev" style="position:relative;flex:1;min-height:160px;margin:0 0 1.2vh;border-radius:12px;overflow:hidden;display:none"></div>' +
+      '<input id="nick" maxlength="20" placeholder="Nickname" autocomplete="off" style="flex:none;width:100%;box-sizing:border-box;padding:clamp(14px,2.4vw,26px);font-size:clamp(16px,3.4vw,32px);border-radius:10px;border:1px solid #444;background:#151a20;color:#fff;text-align:center">' +
+      '<div id="avs" style="flex:none;display:flex;gap:1.2vw;margin-top:1.2vh"></div>' +
+      '<button id="go" style="flex:none;width:100%;margin-top:1.2vh;padding:clamp(16px,2.8vw,30px);font-size:clamp(18px,4vw,38px);font-weight:700;border:0;border-radius:10px;background:#e0a030;color:#111">PLAY</button>' +
+      '<div id="msg" style="flex:none;margin-top:1.2vh;min-height:clamp(20px,3vw,34px);font-size:clamp(14px,2.4vw,24px);opacity:.8"></div></div>';
     document.body.appendChild(el);
     const nick = el.querySelector('#nick'), go = el.querySelector('#go'), msg = el.querySelector('#msg');
     nick.value = store.get(LS.nick) || '';
@@ -39,8 +39,8 @@ export function joinLobby() {
     for (const [id, label, col] of AVS) {
       const b = document.createElement('button');
       b.dataset.id = id;
-      b.style.cssText = 'flex:1;padding:10px 4px;border-radius:8px;border:2px solid #444;color:#eee;font:600 12px system-ui,sans-serif';
-      b.innerHTML = '<div style="width:26px;height:40px;border-radius:13px;margin:0 auto 6px;background:' + col + '"></div>' + label;
+      b.style.cssText = 'flex:1;padding:clamp(10px,1.8vw,20px) 4px;border-radius:10px;border:2px solid #444;color:#eee;font:600 clamp(12px,2.6vw,24px) system-ui,sans-serif';
+      b.innerHTML = '<div style="width:clamp(26px,4.4vw,48px);height:clamp(40px,6.8vw,74px);border-radius:999px;margin:0 auto 6px;background:' + col + '"></div>' + label;
       b.onclick = () => { av = id; store.set(LS.av, id); paint(); if (prev) prev.set(id); };
       box.appendChild(b);
     }
