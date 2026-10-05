@@ -50,7 +50,7 @@ export function joinLobby() {
       import('./preview.js').then((mod) => {
         host.style.display = 'block';
         prev = mod.createPreview(host, AVS.map((a) => a[0]), av, (id) => { av = id; store.set(LS.av, id); paint(); });
-      }).catch((err) => { console.warn('[lobby] 3D preview unavailable, using colour buttons:', err?.message ?? err); host.remove(); });
+      }).catch((err) => { console.warn('[lobby] 3D preview unavailable, using colour buttons:', err?.message ?? err); host.style.display = 'block'; host.style.height = 'auto'; host.style.padding = '8px'; host.style.color = '#ff8080'; host.style.font = '11px system-ui,sans-serif'; host.textContent = '3D preview error: ' + (err?.message ?? err); });
     }
     const connect = (name, useCred) => {
       const cred = useCred && !fresh ? store.get(LS.cred) : null;

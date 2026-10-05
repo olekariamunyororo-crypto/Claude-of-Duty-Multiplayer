@@ -20,6 +20,7 @@ export function createPreview(host, ids, initial, onPick) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'low-power' });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   renderer.setSize(w, h, false);
+  console.info('[preview] renderer ready, webgl2=' + renderer.capabilities.isWebGL2 + ' size ' + w + 'x' + h);
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
 
   const scene = new THREE.Scene();
@@ -98,9 +99,10 @@ export function createPreview(host, ids, initial, onPick) {
         cur = e;
         label.textContent = id.charAt(0).toUpperCase() + id.slice(1) + ' - ' + e.camo + ' camo';
       } catch (err) {
-        warn('build failed, hiding preview:', err?.message ?? err);
-        dispose();
-        host.style.display = 'none';
+        warn('build failed:', err?.message ?? err, String(err?.stack || '').split('\n')[1] || '');
+        label.textContent = 'Preview error: ' + (err?.message ?? err);
+        label.style.color = '#ff8080';
+        label.style.fontSize = '11px';
       }
     }, 40);
   }
