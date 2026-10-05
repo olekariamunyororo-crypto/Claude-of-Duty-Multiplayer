@@ -48,6 +48,7 @@ export function joinLobby() {
     if (!params.has('nopreview')) {
       const host = el.querySelector('#prev');
       import('./preview.js').then((mod) => {
+        if (!host.isConnected) return;
         host.style.display = 'block';
         prev = mod.createPreview(host, AVS.map((a) => a[0]), av, (id) => { av = id; store.set(LS.av, id); paint(); });
       }).catch((err) => { console.warn('[lobby] 3D preview unavailable, using colour buttons:', err?.message ?? err); host.style.display = 'block'; host.style.height = 'auto'; host.style.padding = '8px'; host.style.color = '#ff8080'; host.style.font = '11px system-ui,sans-serif'; host.textContent = '3D preview error: ' + (err?.message ?? err); });
