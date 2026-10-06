@@ -21,12 +21,12 @@ import { buildGulabi, gulabiGroundY, gulabiIsOpen } from './gulabi.js';
  * WORLD — level geometry, the modular building kit, props, set dressing and
  * static collision.
  *
- * Two maps:
+ * Maps:
+ *   gulabi   ~68 x 64 m Jaipur-inspired pink bazaar (default on this fork)
+ *   factory  ~50 x 40 m industrial combat arena
  *   city     ~120 x 120 m Middle-Eastern market street (original)
- *   factory  ~50 x 40 m industrial combat arena (procedural rebuild of the
- *            Nik Lever factory shooter level — no external assets)
  *
- * Select with ?map=factory (default on this fork) or ?map=city.
+ * Select with ?map=gulabi (default), ?map=factory, or ?map=city.
  */
 
 const LEVEL_YAW = 0.5877;
@@ -55,10 +55,10 @@ function resolveMap() {
     const p = new URLSearchParams(location.search).get('map');
     if (p === 'city') return 'city';
     if (p === 'factory') return 'factory';
-    if (p === 'gulabi') return 'gulabi';
+    if (p === 'gulabi' || p === 'pink' || p === 'jaipur') return 'gulabi';
   } catch { /* server / headless */ }
-  // This fork defaults to the procedural factory.
-  return 'factory';
+  // This fork defaults to the Gulabi (pink city) bazaar map.
+  return 'gulabi';
 }
 
 export class WorldSystem {
@@ -141,19 +141,16 @@ export class WorldSystem {
         infos.push(info);
         if (spec.collapse) {
           collapseRoof(A, rng, spec, info, {
-            x: spec.x + rng.range(-2, 2),
-            z: spec.z + rng.range(-2, 2),
+            x: spec.x + rng.range(-1, 1),
+            z: spec.z + rng.range(-1, 1),
           });
         }
       }
-      this.buildings = infos;
-
-      buildGate(A, rng);
-      buildPerimeter(A, rng);
       dressStreet(A, rng);
       dressBuildings(A, rng, infos);
       scatterDebris(A, rng);
-
+      buildGate(A, rng);
+      buildPerimeter(A, rng);
       this._addLights(A);
       A.finalize(this.root, physics);
       A.releaseCache();
@@ -166,19 +163,17 @@ export class WorldSystem {
         tag,
       }));
       this.bounds = new THREE.Box3(
-        new THREE.Vector3(-62, -2, -62),
-        new THREE.Vector3(62, 26, 62)
+        new THREE.Vector3(-60, -2, -60),
+        new THREE.Vector3(60, 20, 60)
       ).applyMatrix4(A.xform);
       this._groundY = groundY;
       this._isOpen = isOpen;
     }
 
-    this.stats = A.stats;
     const ms = performance.now() - t0;
-    console.info(
+    console.log(
       `[world] map=${this.mapId} built in ${ms.toFixed(0)}ms — ${(A.stats.staticTris / 1000).toFixed(0)}k static tris, ` +
-        `${(A.stats.instTris / 1000).toFixed(0)}k instanced tris in ${A.stats.instances} instances, ` +
-        `${A.stats.drawCalls} draw calls, ${(A.stats.collideTris / 1000).toFixed(1)}k collision tris`
+        `${A.stats.instances} instances, ${A.stats.drawCalls} draw calls`
     );
   }
 
@@ -230,49 +225,16 @@ export class WorldSystem {
   }
 
   _stabiliseLightCount(ctx) {
-    const list = this._pointLights;
-    if (!list) return;
-    const render = this._render ?? (this._render = ctx.peek('render'));
-    if (ctx.time.frame - this._pointLightsFrame >= 90) {
-      this._pointLightsFrame = ctx.time.frame;
-      list.length = 0;
-      ctx.scene.traverse(this._collectPointLight);
-      this._lightRanges.clear();
-      for (const e of render?.lights ?? []) {
-        if (e.light?.isPointLight === true) this._lightRanges.set(e.light, e.range);
-      }
-    }
-
-    ctx.camera.getWorldPosition(this._camPos);
-    let n = 0;
-    for (let i = 0; i < list.length; i++) {
-      const l = list[i];
-      const range = this._lightRanges.get(l);
-      if (range === undefined) {
-        if (l.visible === true) n++;
-        continue;
-      }
-      const d = l.position.distanceTo(this._camPos);
-      if (1 - THREE.MathUtils.smoothstep(d, range * 0.75, range * 1.15) > 0.002) n++;
-    }
-
-    if (n > this._lightTarget) this._lightTarget = n;
-    const want = this._lightTarget - n;
-    const pool = this._ballast;
-    for (let i = 0; i < pool.length; i++) {
-      const v = i < want;
-      if (pool[i].visible !== v) pool[i].visible = v;
-    }
+    const render = ctx.peek?.('render');
+    if (!render) return;
+    this._pointLights.length = 0;
+    this.root.traverse(this._collectPointLight);
   }
 
   update(dt, ctx) {
-    this.A?.updateLod(ctx.camera);
-
-    const sky = this._sky ?? (this._sky = ctx.peek('sky'));
-    const alt = sky?.sunAltitude ?? 0.6;
-    const mix = 1 - Math.min(1, Math.max(0, (alt + 0.05) / 0.16));
-    if (Math.abs(mix - this._lampMix) > 0.01) {
-      this._lampMix = mix;
+    const day = ctx.peek?.('day') ?? ctx.get?.('day');
+    if (day && typeof day.nightMix === 'number') {
+      const mix = day.nightMix;
       for (let i = 0; i < this.lamps.length; i++) this.lamps[i].intensity = 14 * mix;
       if (this.lampLens) this.lampLens.emissiveIntensity = 9 * mix;
       for (let i = 0; i < this.bulbs.length; i++) this.bulbs[i].intensity = 5 + 17 * mix;
@@ -322,7 +284,7 @@ export class WorldSystem {
       try {
         renderer.compile(scene, camera);
       } catch {
-        /* a driver we cannot pre-warm on; boot must still proceed */
+        /* driver cannot pre-warm; boot continues */
       }
     }
   }
