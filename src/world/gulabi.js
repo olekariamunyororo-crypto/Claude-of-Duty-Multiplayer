@@ -62,19 +62,20 @@ const exposed = (x, z) => inside(x, z) && !inBlock(x, z);
 /** Yaw 0 looks toward −Z (north). face() turns spawn toward the chowk. */
 const face = (x, z) => Math.atan2(x, z);
 
+// Keep every spawn well inside the sealed wall (HX=34, HZ=32) and off solid blocks.
 export const GULABI_SPAWNS = [
-  [0, -26, face(0, -26), 'north street'],
-  [0, 26, face(0, 26), 'south street'],
-  [-26, 0, face(-26, 0), 'west lane'],
-  [26, 0, face(26, 0), 'east lane'],
-  [-26, -17.5, face(-26, -17.5), 'nw alley'],
-  [26, -17.5, face(26, -17.5), 'ne alley'],
-  [-26, 17.5, face(-26, 17.5), 'sw alley'],
-  [26, 17.5, face(26, 17.5), 'se alley'],
-  [0, -8, face(0, -8), 'chowk north'],
-  [0, 8, face(0, 8), 'chowk south'],
-  [8, 0, face(8, 0), 'chowk east'],
-  [-8, 0, face(-8, 0), 'chowk west'],
+  [0, -18, face(0, -18), 'north street'],
+  [0, 18, face(0, 18), 'south street'],
+  [-18, 0, face(-18, 0), 'west lane'],
+  [18, 0, face(18, 0), 'east lane'],
+  [0, -10, face(0, -10), 'chowk north'],
+  [0, 10, face(0, 10), 'chowk south'],
+  [10, 0, face(10, 0), 'chowk east'],
+  [-10, 0, face(-10, 0), 'chowk west'],
+  [0, 0, Math.PI, 'chowk centre'],
+  [3, -14, face(3, -14), 'north mid'],
+  [-3, 14, face(-3, 14), 'south mid'],
+  [14, 3, face(14, 3), 'east mid'],
 ];
 
 export function gulabiGroundY(_x, _z) {
@@ -155,21 +156,22 @@ export function buildGulabi(A, rng) {
   A.addBox('plaster_sand', BIG, 0, 0.01, 0, 0, 18, 0.06, 18);
   A.box('concrete', 0, 0.01, 0, 18, 0.06, 18);
 
-  const wallH = 4.5;
-  const wallT = 0.55;
+  // Thick sealed perimeter — outer face at ±HX / ±HZ
+  const wallH = 5.5;
+  const wallT = 1.2;
   for (const [x, z, sx, sz] of [
-    [0, -HZ - wallT / 2, W, wallT],
-    [0, HZ + wallT / 2, W, wallT],
-    [-HX - wallT / 2, 0, wallT, D],
-    [HX + wallT / 2, 0, wallT, D],
+    [0, -HZ - wallT / 2, W + wallT * 2, wallT],
+    [0, HZ + wallT / 2, W + wallT * 2, wallT],
+    [-HX - wallT / 2, 0, wallT, D + wallT * 2],
+    [HX + wallT / 2, 0, wallT, D + wallT * 2],
   ]) {
     A.addBox('plaster_pink', BIG, x, wallH / 2, z, 0, sx, wallH, sz);
     A.box('concrete', x, wallH / 2, z, sx, wallH, sz);
   }
-  for (const x of [-HX, HX]) {
-    for (const z of [-HZ, HZ]) {
-      A.addBox('plaster_cream', BIG, x, 3.2, z, 0, 1.2, 6.4, 1.2);
-      A.box('concrete', x, 3.2, z, 1.2, 6.4, 1.2);
+  for (const x of [-HX - wallT / 2, HX + wallT / 2]) {
+    for (const z of [-HZ - wallT / 2, HZ + wallT / 2]) {
+      A.addBox('plaster_cream', BIG, x, wallH / 2 + 0.5, z, 0, 1.6, wallH + 1.0, 1.6);
+      A.box('concrete', x, wallH / 2 + 0.5, z, 1.6, wallH + 1.0, 1.6);
     }
   }
 
@@ -230,8 +232,8 @@ export function buildGulabi(A, rng) {
 
   if (A.has('barrel_rust') || A.has('barrel_blue')) {
     for (let i = 0; i < 14; i++) {
-      const x = (hs(i * 3.1) - 0.5) * 50;
-      const z = (hs(i * 5.7) - 0.5) * 48;
+      const x = (hs(i * 3.1) - 0.5) * 40;
+      const z = (hs(i * 5.7) - 0.5) * 36;
       if (!exposed(x, z)) continue;
       const id = i % 2 ? 'barrel_rust' : 'barrel_blue';
       if (A.has(id)) {
@@ -261,7 +263,7 @@ export function buildGulabi(A, rng) {
 
   return {
     spawns: GULABI_SPAWNS,
-    bounds: { minX: -HX - 2, maxX: HX + 2, minZ: -HZ - 2, maxZ: HZ + 2 },
+    bounds: { minX: -HX + 1, maxX: HX - 1, minZ: -HZ + 1, maxZ: HZ - 1 },
     fans: [],
   };
 }
