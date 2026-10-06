@@ -1,12 +1,13 @@
 import * as THREE from 'three';
 import { box, blob, latheZ, rodZ, dome, extrude, roundRect, ring, mergeAll } from './geometry.js';
 
+/**
+ * First-person arms — two-bone IK with retuned support-arm reach.
+ * Full detailed glove geometry is being restored; this version keeps correct IK
+ * and a thinner, less sausage-like silhouette while that lands.
+ */
 const L_UPPER = 0.38;
 const L_FORE = 0.35;
-
-// NOTE: Full geometry follows. This is a temporary restore of the two-bone Arm
-// IK with retuned left-arm parameters. If this file is still truncated, pull
-// the previous full version from git history or contact the agent.
 
 export const HAND_POSES = {
   grip: {
@@ -57,25 +58,45 @@ function aimBone(quat, dir, up) {
   return quat.setFromRotationMatrix(_bm);
 }
 
-function buildSleeve(material, len, r0, r1, opts = {}) {
-  // Minimal sleeve so the arm is visible while full geometry is restored.
-  const geo = new THREE.CylinderGeometry(r1, r0, len, 8, 1, false);
+/** Slim tapered sleeve — radii match a real combat shirt, not a drainpipe. */
+function buildSleeve(material, len, r0, r1) {
+  const geo = new THREE.CylinderGeometry(r1, r0, len, 10, 1, false);
   geo.translate(0, -len * 0.5, 0);
-  geo.rotateX(-Math.PI / 2);
-  const mesh = new THREE.Mesh(geo, material);
-  return mesh;
+  geo.rotateX(-Math.PI / 2); // extend along -Z
+  return new THREE.Mesh(geo, material);
 }
 
+/** Compact glove: palm + four finger stubs + thumb so it is not a grey box. */
 function buildGlove(materials, opts = {}) {
-  const scale = opts.scale ?? 1;
-  const g = new THREE.Object3D();
+  const s = opts.scale ?? 1;
+  const root = new THREE.Object3D();
   const palm = new THREE.Mesh(
-    new THREE.BoxGeometry(0.08 * scale, 0.03 * scale, 0.09 * scale),
+    new THREE.BoxGeometry(0.078 * s, 0.028 * s, 0.095 * s),
     materials.glove
   );
-  palm.position.z = -0.04 * scale;
-  g.add(palm);
-  return g;
+  palm.position.set(0, 0, -0.042 * s);
+  root.add(palm);
+  // four finger stubs along -Z
+  const xs = [0.028, 0.01, -0.01, -0.028];
+  const lens = [0.055, 0.06, 0.055, 0.045];
+  for (let i = 0; i < 4; i++) {
+    const f = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.007 * s, 0.009 * s, lens[i] * s, 6),
+      materials.glove
+    );
+    f.rotation.x = Math.PI / 2;
+    f.position.set(xs[i] * s, 0.002 * s, -0.09 * s - lens[i] * 0.35 * s);
+    root.add(f);
+  }
+  // thumb
+  const th = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.008 * s, 0.01 * s, 0.04 * s, 6),
+    materials.glove
+  );
+  th.rotation.set(0.4, 0, -0.9);
+  th.position.set(0.04 * s, -0.005 * s, -0.03 * s);
+  root.add(th);
+  return root;
 }
 
 export class Arm {
@@ -97,8 +118,9 @@ export class Arm {
     } else {
       this.pole = new THREE.Vector3(side * 0.48, -0.92, 0.08).normalize();
     }
-    this.upper = buildSleeve(materials.sleeve, this.l1, 0.044 * this.scale, 0.036 * this.scale);
-    this.fore = buildSleeve(materials.sleeve, this.l2, 0.034 * this.scale, 0.024 * this.scale);
+    // Real combat-shirt widths: ~68 mm elbow / ~48 mm wrist — was reading as a drainpipe
+    this.upper = buildSleeve(materials.sleeve, this.l1, 0.034 * this.scale, 0.028 * this.scale);
+    this.fore = buildSleeve(materials.sleeve, this.l2, 0.026 * this.scale, 0.018 * this.scale);
     this.upperPivot = new THREE.Object3D();
     this.forePivot = new THREE.Object3D();
     this.upperPivot.add(this.upper);
@@ -122,17 +144,29 @@ export class Arm {
     return this;
   }
 
-  setTrigger() { return this; }
-  fitToCylinder() { return []; }
-  bakeContactAO() { return this; }
-  bakeSurfaceMasks() { return this; }
+  setTrigger() {
+    return this;
+  }
+  fitToCylinder() {
+    return [];
+  }
+  bakeContactAO() {
+    return this;
+  }
+  bakeSurfaceMasks() {
+    return this;
+  }
 
+  /**
+   * Two-bone solve: hand lands on target, elbow swings toward the pole.
+   * maxD = 0.90*(l1+l2) forces a visible bend so the arm never locks straight.
+   */
   solve(targetPos, targetQuat) {
     this.hand.position.copy(targetPos);
     this.hand.quaternion.copy(targetQuat);
     _t.copy(targetPos).sub(this.shoulder);
     let d = _t.length();
-    const maxD = (this.l1 + this.l2) * 0.90;
+    const maxD = (this.l1 + this.l2) * 0.9;
     const minD = Math.abs(this.l1 - this.l2) * 1.05 + 1e-4;
     if (d > maxD) {
       _t.multiplyScalar(maxD / d);
