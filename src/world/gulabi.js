@@ -1,19 +1,14 @@
 /**
  * WORLD — Gulabi Bazaar (Jaipur-inspired pink city) for Claude-of-Duty.
  *
- * Built only with the Assembler (no gulabi-nagar shaders/assets).
- * ~68×64 m sealed arena: N–S main street, E–W lane, central chowk,
- * pink shop blocks, stalls, chai cart, crates, perimeter wall.
- *
- * Select: ?map=gulabi  (default on this fork)
+ * Hollow shop shells with street doorways so the whole compound is tourable.
+ * Sealed outer perimeter. Select: ?map=gulabi (default on this fork).
  */
 import * as THREE from 'three';
-import { trs } from './util.js';
 import { BOX, BOX_THIN } from './kit.js';
 
 const HX = 34;
 const HZ = 32;
-const _m = new THREE.Matrix4();
 
 const hs = (n) => {
   const s = Math.sin(n * 127.1 + 311.7) * 43758.5453;
@@ -25,12 +20,16 @@ const FACADE = ['plaster_pink', 'plaster_pink', 'plaster_sand', 'plaster_pink', 
 const SHUTTER = ['metal_blue', 'metal_rust', 'metal_dark'];
 const AWNING = ['brick', 'plaster_white', 'plaster_blue'];
 
+const WALL_T = 0.45;
+const DOOR_W = 3.0;
+const DOOR_H = 2.7;
+
 function makeBlocks() {
   const base = [
-    [11, 34, 19, 32],
-    [11, 34, 6, 15],
-    [7, 11, 19, 32],
-    [7, 11, 11, 15],
+    [12, 34, 20, 32],
+    [12, 34, 6, 16],
+    [7, 12, 20, 32],
+    [7, 12, 11, 16],
   ];
   const out = [];
   let n = 0;
@@ -41,7 +40,7 @@ function makeBlocks() {
         const [z0, z1] = sorted(sz * b0, sz * b1);
         out.push({
           x0, x1, z0, z1,
-          h: 6.2 + hs(n + 1) * 2.6,
+          h: 6.0 + hs(n + 1) * 2.4,
           key: FACADE[n % FACADE.length],
           n,
         });
@@ -53,16 +52,14 @@ function makeBlocks() {
 }
 const BLOCKS = makeBlocks();
 
-const inBlock = (x, z, pad = 0) =>
+const inBlockFootprint = (x, z, pad = 0) =>
   BLOCKS.some((b) => x > b.x0 - pad && x < b.x1 + pad && z > b.z0 - pad && z < b.z1 + pad);
 
 const inside = (x, z) => Math.abs(x) < HX && Math.abs(z) < HZ;
-const exposed = (x, z) => inside(x, z) && !inBlock(x, z);
+const exposed = (x, z) => inside(x, z) && !inBlockFootprint(x, z);
 
-/** Yaw 0 looks toward −Z (north). face() turns spawn toward the chowk. */
 const face = (x, z) => Math.atan2(x, z);
 
-// Keep every spawn well inside the sealed wall (HX=34, HZ=32) and off solid blocks.
 export const GULABI_SPAWNS = [
   [0, -18, face(0, -18), 'north street'],
   [0, 18, face(0, 18), 'south street'],
@@ -82,63 +79,110 @@ export function gulabiGroundY(_x, _z) {
   return 0;
 }
 
+/** Whole compound is walkable (buildings are hollow shells with doors). */
 export function gulabiIsOpen(x, z, margin = 0.4) {
-  if (Math.abs(x) > HX - margin || Math.abs(z) > HZ - margin) return false;
-  return !inBlock(x, z, margin);
+  return Math.abs(x) <= HX - margin && Math.abs(z) <= HZ - margin;
 }
 
-const SIDES = [
-  { nx: 0, nz: -1 },
-  { nx: 0, nz: 1 },
-  { nx: -1, nz: 0 },
-  { nx: 1, nz: 0 },
-];
+function wallWithDoor(A, BIG, key, alongX, fixed, a0, a1, y0, y1) {
+  const mid = (a0 + a1) / 2;
+  const half = DOOR_W / 2;
+  const segs = [
+    [a0, mid - half],
+    [mid + half, a1],
+  ];
+  const thick = WALL_T;
+  const h = y1 - y0;
+  const cy = (y0 + y1) / 2;
 
-function facade(A, b, THIN) {
-  for (const { nx, nz } of SIDES) {
-    const alongX = nz !== 0;
-    const plane = alongX ? (nz < 0 ? b.z0 : b.z1) : (nx < 0 ? b.x0 : b.x1);
-    const s0 = alongX ? b.x0 : b.z0;
-    const s1 = alongX ? b.x1 : b.z1;
-    const px = (pos, off) => (alongX ? pos : plane + nx * off);
-    const pz = (pos, off) => (alongX ? plane + nz * off : pos);
-    const piece = (key, pos, y, off, wAlong, hh, thick) =>
-      A.addBox(key, THIN, px(pos, off), y, pz(pos, off), 0,
-        alongX ? wAlong : thick, hh, alongX ? thick : wAlong);
+  for (const [s0, s1] of segs) {
+    const len = s1 - s0;
+    if (len < 0.35) continue;
+    const c = (s0 + s1) / 2;
+    if (alongX) {
+      A.addBox(key, BIG, c, cy, fixed, 0, len, h, thick);
+      A.box('concrete', c, cy, fixed, len, h, thick);
+    } else {
+      A.addBox(key, BIG, fixed, cy, c, 0, thick, h, len);
+      A.box('concrete', fixed, cy, c, thick, h, len);
+    }
+  }
 
-    for (let pos = s0 + 1.7; pos < s1 - 1.0; pos += 3.0) {
-      if (!exposed(px(pos, 0.8), pz(pos, 0.8))) continue;
-      const r = hs(b.n * 7.3 + pos);
-      piece(SHUTTER[Math.floor(r * 3) % 3], pos, 1.25, 0.06, 2.2, 2.5, 0.12);
-      piece('plaster_white', pos, 2.7, 0.08, 2.6, 0.2, 0.16);
-      const ax = px(pos, 0.9);
-      const az = pz(pos, 0.9);
-      if (alongX) {
-        A.addBox(AWNING[Math.floor(r * 7) % 3], THIN, ax, 3.05, az, 0, 2.7, 0.08, 1.4);
-      } else {
-        A.addBox(AWNING[Math.floor(r * 7) % 3], THIN, ax, 3.05, az, 0, 1.4, 0.08, 2.7);
-      }
-      for (const y of [4.6, 6.9]) {
-        if (y + 0.9 > b.h) continue;
-        piece('plaster_white', pos, y, 0.05, 1.25, 1.75, 0.1);
-        piece('metal_dark', pos, y, 0.07, 0.95, 1.45, 0.14);
-      }
+  const lintH = Math.max(0.35, y1 - DOOR_H);
+  if (lintH > 0.2 && y1 > DOOR_H) {
+    const ly = DOOR_H + lintH / 2;
+    if (alongX) {
+      A.addBox(key, BIG, mid, ly, fixed, 0, DOOR_W + 0.3, lintH, thick + 0.05);
+      A.box('concrete', mid, ly, fixed, DOOR_W + 0.3, lintH, thick + 0.05);
+    } else {
+      A.addBox(key, BIG, fixed, ly, mid, 0, thick + 0.05, lintH, DOOR_W + 0.3);
+      A.box('concrete', fixed, ly, mid, thick + 0.05, lintH, DOOR_W + 0.3);
+    }
+  }
+
+  for (const side of [-1, 1]) {
+    const p = mid + side * (half + 0.12);
+    if (alongX) {
+      A.addBox('plaster_white', BIG, p, DOOR_H / 2, fixed, 0, 0.24, DOOR_H, thick + 0.08);
+      A.box('concrete', p, DOOR_H / 2, fixed, 0.24, DOOR_H, thick + 0.08);
+    } else {
+      A.addBox('plaster_white', BIG, fixed, DOOR_H / 2, p, 0, thick + 0.08, DOOR_H, 0.24);
+      A.box('concrete', fixed, DOOR_H / 2, p, thick + 0.08, DOOR_H, 0.24);
     }
   }
 }
 
+function buildShell(A, BIG, THIN, b) {
+  const { x0, x1, z0, z1, h, key } = b;
+  const cx = (x0 + x1) / 2;
+  const cz = (z0 + z1) / 2;
+  const w = x1 - x0;
+  const d = z1 - z0;
+
+  A.addBox('floor_concrete', BIG, cx, 0.04, cz, 0, w - WALL_T * 2, 0.08, d - WALL_T * 2);
+  A.box('concrete', cx, 0.04, cz, w - WALL_T * 2, 0.08, d - WALL_T * 2);
+
+  wallWithDoor(A, BIG, key, true, z0 + WALL_T / 2, x0, x1, 0, h);
+  wallWithDoor(A, BIG, key, true, z1 - WALL_T / 2, x0, x1, 0, h);
+  wallWithDoor(A, BIG, key, false, x0 + WALL_T / 2, z0, z1, 0, h);
+  wallWithDoor(A, BIG, key, false, x1 - WALL_T / 2, z0, z1, 0, h);
+
+  A.addBox(key === 'plaster_pink' ? 'plaster_cream' : 'plaster_white', BIG, cx, h + 0.12, cz, 0, w + 0.2, 0.28, d + 0.2);
+
+  for (const { nx, nz, fixed, alongX, a0, a1 } of [
+    { nx: 0, nz: -1, fixed: z0, alongX: true, a0: x0, a1: x1 },
+    { nx: 0, nz: 1, fixed: z1, alongX: true, a0: x0, a1: x1 },
+    { nx: -1, nz: 0, fixed: x0, alongX: false, a0: z0, a1: z1 },
+    { nx: 1, nz: 0, fixed: x1, alongX: false, a0: z0, a1: z1 },
+  ]) {
+    for (let pos = a0 + 2.0; pos < a1 - 1.5; pos += 3.2) {
+      if (Math.abs(pos - (a0 + a1) / 2) < DOOR_W / 2 + 0.4) continue;
+      const r = hs(b.n * 7.3 + pos);
+      const y = 1.3;
+      if (alongX) {
+        A.addBox(SHUTTER[Math.floor(r * 3) % 3], THIN, pos, y, fixed + nz * 0.08, 0, 1.6, 2.0, 0.1);
+        A.addBox(AWNING[Math.floor(r * 5) % 3], THIN, pos, 2.85, fixed + nz * 0.7, 0, 2.2, 0.08, 1.2);
+      } else {
+        A.addBox(SHUTTER[Math.floor(r * 3) % 3], THIN, fixed + nx * 0.08, y, pos, 0, 0.1, 2.0, 1.6);
+        A.addBox(AWNING[Math.floor(r * 5) % 3], THIN, fixed + nx * 0.7, 2.85, pos, 0, 1.2, 0.08, 2.2);
+      }
+    }
+  }
+
+  if (hs(b.n * 3.1) > 0.5 && w > 9 && d > 9) {
+    A.addBox('plaster_cream', THIN, cx, h + 2.2, cz, 0, 2.2, 0.18, 2.2);
+    A.addBox('plaster_white', BIG, cx, h + 2.6, cz, 0, 1.2, 0.5, 1.2);
+  }
+}
+
 function crateCluster(A, BOXG, x, z, n) {
-  if (inBlock(x, z, 1.5)) return;
+  if (inBlockFootprint(x, z, 1.2)) return;
   const k1 = n % 2 ? 'metal_rust' : 'brick';
   const k2 = n % 2 ? 'brick' : 'metal_rust';
   A.addBox(k1, BOXG, x, 0.45, z, hs(n) * 0.6, 1.1, 0.9, 1.1);
   A.box(A.surfaceOf(k1), x, 0.45, z, 1.1, 0.9, 1.1, hs(n) * 0.6);
   A.addBox(k2, BOXG, x + 1.15, 0.35, z + 0.25, 0, 0.9, 0.7, 0.9);
   A.box(A.surfaceOf(k2), x + 1.15, 0.35, z + 0.25, 0.9, 0.7, 0.9);
-  if (n % 3 === 0) {
-    A.addBox(k2, BOXG, x + 0.1, 1.2, z, 0.4, 0.8, 0.6, 0.8);
-    A.box(A.surfaceOf(k2), x + 0.1, 1.2, z, 0.8, 0.6, 0.8, 0.4);
-  }
 }
 
 export function buildGulabi(A, rng) {
@@ -147,6 +191,7 @@ export function buildGulabi(A, rng) {
 
   const W = HX * 2 + 4;
   const D = HZ * 2 + 4;
+
   A.addBox('sand', BIG, 0, -0.35, 0, 0, W + 8, 0.5, D + 8);
   A.box('sand', 0, -0.35, 0, W + 8, 0.5, D + 8);
   A.addBox('floor_concrete', BIG, 0, -0.02, 0, 0, 14, 0.08, D - 4);
@@ -156,7 +201,6 @@ export function buildGulabi(A, rng) {
   A.addBox('plaster_sand', BIG, 0, 0.01, 0, 0, 18, 0.06, 18);
   A.box('concrete', 0, 0.01, 0, 18, 0.06, 18);
 
-  // Thick sealed perimeter — outer face at ±HX / ±HZ
   const wallH = 5.5;
   const wallT = 1.2;
   for (const [x, z, sx, sz] of [
@@ -175,23 +219,7 @@ export function buildGulabi(A, rng) {
     }
   }
 
-  for (const b of BLOCKS) {
-    const w = b.x1 - b.x0;
-    const d = b.z1 - b.z0;
-    const cx = (b.x0 + b.x1) / 2;
-    const cz = (b.z0 + b.z1) / 2;
-    A.addBox(b.key, BIG, cx, b.h / 2, cz, 0, w, b.h, d);
-    A.box(A.surfaceOf(b.key), cx, b.h / 2, cz, w, b.h, d);
-    A.addBox(b.key === 'plaster_pink' ? 'plaster_cream' : 'plaster_white', BIG, cx, b.h + 0.15, cz, 0, w + 0.3, 0.3, d + 0.3);
-    facade(A, b, THIN);
-    if (hs(b.n * 3.1) > 0.45 && w > 8 && d > 8) {
-      for (const [ox, oz] of [[-0.95, -0.95], [0.95, -0.95], [-0.95, 0.95], [0.95, 0.95]]) {
-        A.addBox('plaster_cream', THIN, cx + ox * (w * 0.35), b.h + 1.25, cz + oz * (d * 0.35), 0, 0.22, 1.9, 0.22);
-      }
-      A.addBox('plaster_cream', THIN, cx, b.h + 2.3, cz, 0, 2.4, 0.2, 2.4);
-      A.addBox('plaster_white', BIG, cx, b.h + 2.7, cz, 0, 1.4, 0.55, 1.4);
-    }
-  }
+  for (const b of BLOCKS) buildShell(A, BIG, THIN, b);
 
   A.addBox('concrete', BIG, 0, 0.3, 0, 0, 3.6, 0.6, 3.6);
   A.box('concrete', 0, 0.3, 0, 3.6, 0.6, 3.6);
@@ -218,41 +246,18 @@ export function buildGulabi(A, rng) {
   A.addBox('metal_blue', BIG, 14, 0.5, -2.5, 0, 1.8, 1.0, 0.9);
   A.box('metal', 14, 0.5, -2.5, 1.8, 1.0, 0.9);
   A.addBox('plaster_white', THIN, 14, 2.1, -2.5, 0, 2.3, 0.07, 1.4);
-  for (const ox of [-1.0, 1.0]) {
-    A.addBox('metal_dark', THIN, 14 + ox, 1.6, -2.5, 0, 0.08, 1.2, 0.08);
-  }
 
   const clusters = [
     [-2.8, -21], [2.8, -24], [-2.8, 24], [2.8, 21],
     [-20, -1.5], [20, 1.5], [-26, 2], [26, -2],
-    [9.5, -9.5], [-9.5, 9.5], [-22, -17.5], [22, 17.5],
-    [0, -18], [0, 18], [-12, 0], [12, 0],
+    [9.5, -9.5], [-9.5, 9.5], [0, -18], [0, 18], [-12, 0], [12, 0],
   ];
   clusters.forEach(([x, z], i) => crateCluster(A, BIG, x, z, i));
 
-  if (A.has('barrel_rust') || A.has('barrel_blue')) {
-    for (let i = 0; i < 14; i++) {
-      const x = (hs(i * 3.1) - 0.5) * 40;
-      const z = (hs(i * 5.7) - 0.5) * 36;
-      if (!exposed(x, z)) continue;
-      const id = i % 2 ? 'barrel_rust' : 'barrel_blue';
-      if (A.has(id)) {
-        A.put(id, x, 0, z, hs(i) * Math.PI);
-        A.box('metal', x, 0.45, z, 0.55, 0.9, 0.55);
-      }
-    }
-  }
-
-  const lights = [
-    [0, 5.5, 0],
-    [0, 4.5, -18], [0, 4.5, 18],
-    [-18, 4.5, 0], [18, 4.5, 0],
-    [-10, 4, -10], [10, 4, -10],
-    [-10, 4, 10], [10, 4, 10],
-    [14, 3.2, -2.5],
-    [-7.5, 3.5, -7.5], [7.5, 3.5, 7.5],
-  ];
-  for (const [x, y, z] of lights) {
+  for (const [x, y, z] of [
+    [0, 5.5, 0], [0, 4.5, -18], [0, 4.5, 18], [-18, 4.5, 0], [18, 4.5, 0],
+    [-10, 4, -10], [10, 4, -10], [-10, 4, 10], [10, 4, 10], [14, 3.2, -2.5],
+  ]) {
     A.interiorLights.push({ x, y, z });
   }
   for (const [x, z] of [[0, -22], [0, 22], [-22, 0], [22, 0], [-12, -12], [12, 12]]) {
