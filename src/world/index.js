@@ -15,6 +15,7 @@ import {
   isOpen,
 } from './dressing.js';
 import { buildFactory, factoryGroundY, factoryIsOpen } from './factory.js';
+import { buildGulabi, gulabiGroundY, gulabiIsOpen } from './gulabi.js';
 
 /**
  * WORLD — level geometry, the modular building kit, props, set dressing and
@@ -54,6 +55,7 @@ function resolveMap() {
     const p = new URLSearchParams(location.search).get('map');
     if (p === 'city') return 'city';
     if (p === 'factory') return 'factory';
+    if (p === 'gulabi') return 'gulabi';
   } catch { /* server / headless */ }
   // This fork defaults to the procedural factory.
   return 'factory';
@@ -105,6 +107,28 @@ export class WorldSystem {
       ).applyMatrix4(A.xform);
       this._groundY = factoryGroundY;
       this._isOpen = factoryIsOpen;
+    } else if (this.mapId === 'gulabi') {
+      A.setTransform(0, 0, 0);
+      registerProps(A, rng);
+      const gul = buildGulabi(A, rng);
+      this._factoryFans = gul.fans;
+      this._addLights(A);
+      A.finalize(this.root, physics);
+      A.releaseCache();
+
+      this._v = new THREE.Vector3();
+      this._inv = new THREE.Matrix4().copy(A.xform).invert();
+      this.spawnPoints = gul.spawns.map(([x, z, yaw, tag]) => ({
+        position: A.toWorld(x, 0, z),
+        yaw,
+        tag,
+      }));
+      this.bounds = new THREE.Box3(
+        new THREE.Vector3(gul.bounds.minX, -2, gul.bounds.minZ),
+        new THREE.Vector3(gul.bounds.maxX, 12, gul.bounds.maxZ)
+      ).applyMatrix4(A.xform);
+      this._groundY = gulabiGroundY;
+      this._isOpen = gulabiIsOpen;
     } else {
       A.setTransform(LEVEL_YAW, LEVEL_TX, LEVEL_TZ);
       registerProps(A, rng);

@@ -84,6 +84,7 @@ export async function build(ctx) {
   const gauss = () => (r() + r() + r() + r() - 2) / 0.8165;
   const TX = createPetalTextures(ctx.rng('petals-tex'));
   const root = new THREE.Group(); root.name = 'petals';
+  root.visible = !new URLSearchParams(location.search).has('nopetals');
 
   // ------------------------------------------------------------------ what exists around us
   const SI = createSurfaceIndex(ctx, {});

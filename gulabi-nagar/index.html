@@ -1,6 +1,99 @@
 <!doctype html>
 <html lang="en">
 <head>
+<script>/*crumbs*/
+(function(){
+var ring=[],count=0;
+var box=document.createElement('pre');
+box.style.cssText='position:fixed;left:0;right:0;top:36vh;max-height:34vh;overflow:auto;margin:0;padding:6px;background:rgba(40,0,40,.93);color:#f8f;font:10px/1.25 monospace;white-space:pre-wrap;z-index:2147483645;display:none';
+function mount(){if(document.body){document.body.appendChild(box);}else{document.addEventListener('DOMContentLoaded',function(){document.body.appendChild(box);});}}
+mount();
+box.onclick=function(){box.style.display='none';};
+function hook(P){
+if(!P||!P.linkProgram)return;
+var orig=P.linkProgram;
+P.linkProgram=function(p){
+var s='';
+try{
+s='#'+(++count)+' t='+Math.round(performance.now()/1000)+'s';
+var sh=this.getAttachedShaders(p)||[];
+for(var i=0;i<sh.length;i++){
+var src=this.getShaderSource(sh[i])||'';
+var typ=this.getShaderParameter(sh[i],this.SHADER_TYPE)===this.VERTEX_SHADER?'VS':'FS';
+var nm=/#define SHADER_NAME (\S+)/.exec(src);
+var u={},m,re=/uniform\s+\w+\s+(u[A-Z]\w*)/g;
+while((m=re.exec(src))){u[m[1]]=1;}
+s+=' '+typ+':'+src.length+(nm?'('+nm[1]+')':'')+' ['+Object.keys(u).slice(0,6).join(',')+']';
+}
+}catch(e){}
+ring.push(s);if(ring.length>6)ring.shift();
+var t0=performance.now();
+var r=orig.call(this,p);
+try{ring[ring.length-1]=s+' -> '+Math.round(performance.now()-t0)+'ms';}catch(e){}
+return r;
+};
+}
+hook(window.WebGL2RenderingContext&&WebGL2RenderingContext.prototype);
+hook(window.WebGLRenderingContext&&WebGLRenderingContext.prototype);
+window.addEventListener('webglcontextlost',function(){box.style.display='block';box.textContent='CONTEXT LOST at '+Math.round(performance.now()/1000)+'s. Programs linked so far: '+count+'. Last ones:\n'+ring.join('\n');},true);
+})();
+</script>
+
+<script>/*linkfail*/
+(function(){
+var box=document.createElement('pre');
+box.style.cssText='position:fixed;left:0;right:0;top:0;max-height:38vh;overflow:auto;margin:0;padding:6px;background:rgba(0,0,0,.9);color:#ff0;font:10px/1.25 monospace;white-space:pre-wrap;z-index:2147483646';
+var n=0;
+function mount(){if(document.body){document.body.appendChild(box);}else{document.addEventListener('DOMContentLoaded',function(){document.body.appendChild(box);});}}
+mount();
+box.onclick=function(){box.style.display='none';};
+function hook(P){
+if(!P||!P.linkProgram)return;
+var orig=P.linkProgram;
+P.linkProgram=function(p){
+orig.call(this,p);
+try{
+if(n>=3||this.getProgramParameter(p,this.LINK_STATUS))return;
+n++;
+var out='[LINKFAIL '+n+'] '+String(this.getProgramInfoLog(p)).slice(0,160)+'\n';
+var sh=this.getAttachedShaders(p)||[];
+for(var i=0;i<sh.length;i++){
+var src=this.getShaderSource(sh[i])||'';
+var typ=this.getShaderParameter(sh[i],this.SHADER_TYPE)===this.VERTEX_SHADER?'VS':'FS';
+var u={},m,re=/uniform\s+\w+\s+(u[A-Z]\w*)/g;
+while((m=re.exec(src))){u[m[1]]=1;}
+out+=typ+' '+src.length+'ch log='+String(this.getShaderInfoLog(sh[i])).slice(0,140)+' U=['+Object.keys(u).slice(0,12).join(',')+'] end='+src.slice(-110).replace(/\s+/g,' ')+'\n';
+}
+box.textContent+=out;
+}catch(e){}
+};
+}
+hook(window.WebGL2RenderingContext&&WebGL2RenderingContext.prototype);
+hook(window.WebGLRenderingContext&&WebGLRenderingContext.prototype);
+})();
+</script>
+
+<script>/*dbg-overlay*/
+(function(){
+var box=document.createElement('pre');
+box.style.cssText='position:fixed;left:0;right:0;bottom:0;max-height:45vh;overflow:auto;margin:0;padding:6px;background:rgba(0,0,0,.88);color:#9f9;font:11px/1.3 monospace;white-space:pre-wrap;z-index:2147483647';
+var lines=[];
+var head=[],tail=[],cnt=0,skipped=0;
+function add(t){t=String(t);if(t.indexOf('[warn]')===0){skipped++;return;}t=t.replace(/\s*\n+\s*/g,' | ').slice(0,260);cnt++;if(head.length<10){head.push(t);}else{tail.push(t);if(tail.length>5)tail.shift();}box.textContent=head.join('\n')+(cnt>15?'\n... '+(cnt-15)+' more errors ...\n':'\n')+tail.join('\n')+'\n(warnings hidden: '+skipped+')';}
+window.addEventListener('webglcontextlost',function(){add('[CONTEXT LOST]');},true);
+window.addEventListener('webglcontextcreationerror',function(e){add('[ctx create error] '+(e.statusMessage||''));},true);
+function mount(){if(document.body){document.body.appendChild(box);}else{document.addEventListener('DOMContentLoaded',function(){document.body.appendChild(box);});}}
+mount();
+['error','warn'].forEach(function(k){var o=console[k];console[k]=function(){try{add('['+k+'] '+Array.prototype.slice.call(arguments).join(' '));}catch(e){}o.apply(console,arguments);};});
+window.addEventListener('error',function(e){add('[uncaught] '+e.message+' @'+String(e.filename||'').split('/').pop()+':'+e.lineno);});
+window.addEventListener('unhandledrejection',function(e){add('[promise] '+(e.reason&&e.reason.message||e.reason));});
+try{var c=document.createElement('canvas');var g2=c.getContext('webgl2');var g=g2||c.getContext('webgl');
+if(!g){add('[gl] NO WEBGL CONTEXT');}else{var x=g.getExtension('WEBGL_debug_renderer_info');
+add('[gl] '+(g2?'webgl2':'webgl1')+' '+(x?g.getParameter(x.UNMASKED_RENDERER_WEBGL):g.getParameter(g.RENDERER))+' vertU='+g.getParameter(g.MAX_VERTEX_UNIFORM_VECTORS)+' fragU='+g.getParameter(g.MAX_FRAGMENT_UNIFORM_VECTORS)+' maxTex='+g.getParameter(g.MAX_TEXTURE_SIZE));}}catch(e){add('[gl probe] '+e.message);}
+box.onclick=function(){box.style.display='none';};
+})();
+</script>
+
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#a34d36"><meta name="description" content="Wander through Gulabi Nagar, a fictional Jaipur-inspired railway neighbourhood. A living, cel-shaded world of chai stalls, pink havelis and local trains.">
 <title>Gulabi Nagar · An afternoon in Jaipur</title>

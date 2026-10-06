@@ -12,7 +12,7 @@ import { createSoundscape } from './core/soundscape.js';
 
 export const MODULES = [
   'environment', 'street', 'poles', 'railway', 'station', 'plaza', 'shopsA', 'shopsB', 'houses',
-  'sakura', 'trains', 'crossing', 'props', 'vehicles', 'characters', 'petals', 'jaipur',
+  'sakura', 'trains', 'crossing', 'props', 'vehicles', 'characters', ...(/[?&]nopetals/.test(location.search) ? [] : ['petals']), 'jaipur',
 ];
 
 const params = new URLSearchParams(location.search);
