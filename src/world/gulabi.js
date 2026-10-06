@@ -61,18 +61,19 @@ const exposed = (x, z) => inside(x, z) && !inBlockFootprint(x, z);
 const face = (x, z) => Math.atan2(x, z);
 
 export const GULABI_SPAWNS = [
-  [0, -18, face(0, -18), 'north street'],
-  [0, 18, face(0, 18), 'south street'],
-  [-18, 0, face(-18, 0), 'west lane'],
-  [18, 0, face(18, 0), 'east lane'],
-  [0, -10, face(0, -10), 'chowk north'],
-  [0, 10, face(0, 10), 'chowk south'],
-  [10, 0, face(10, 0), 'chowk east'],
-  [-10, 0, face(-10, 0), 'chowk west'],
+  // First entry is what player.spawn(0) uses — must be deep inside the compound.
   [0, 0, Math.PI, 'chowk centre'],
-  [3, -14, face(3, -14), 'north mid'],
-  [-3, 14, face(-3, 14), 'south mid'],
-  [14, 3, face(14, 3), 'east mid'],
+  [0, -12, face(0, -12), 'north street'],
+  [0, 12, face(0, 12), 'south street'],
+  [-12, 0, face(-12, 0), 'west lane'],
+  [12, 0, face(12, 0), 'east lane'],
+  [0, -8, face(0, -8), 'chowk north'],
+  [0, 8, face(0, 8), 'chowk south'],
+  [8, 0, face(8, 0), 'chowk east'],
+  [-8, 0, face(-8, 0), 'chowk west'],
+  [4, -10, face(4, -10), 'north mid'],
+  [-4, 10, face(-4, 10), 'south mid'],
+  [10, 4, face(10, 4), 'east mid'],
 ];
 
 export function gulabiGroundY(_x, _z) {
