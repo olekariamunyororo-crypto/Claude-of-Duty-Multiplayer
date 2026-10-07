@@ -42,6 +42,7 @@ function handBasis(out, finger, back) {
 }
 
 function applyNode(obj, node) {
+  if (!node || !node.pos) return;
   obj.position.fromArray(node.pos);
   if (node.rot) obj.rotation.fromArray(node.rot);
 }
@@ -89,8 +90,10 @@ export class Viewmodel {
 
     const bakeArms = this.mats.lib?.bakeMasks?.bind(this.mats.lib) ?? null;
     if (bakeArms) {
-      this.armR.bakeSurfaceMasks(bakeArms, shapeMasks, this.rng);
-      this.armL.bakeSurfaceMasks(bakeArms, shapeMasks, this.rng);
+      try {
+        this.armR.bakeSurfaceMasks(bakeArms, shapeMasks, this.rng);
+        this.armL.bakeSurfaceMasks(bakeArms, shapeMasks, this.rng);
+      } catch (_) {}
     }
 
     this.shoulderR = new THREE.Vector3(0.205, -0.2, 0.06);
@@ -132,44 +135,62 @@ export class Viewmodel {
 
   addWeapon(model, def) {
     const group = new THREE.Object3D();
-    group.name = 'weapon-' + def.id;
+    group.name = 'weapon-' + (model.id || def.id);
     group.visible = false;
     this.rig.add(group);
 
+    let tris = 0;
     const meshes = [];
-    const parts = {};
     const bake = this.mats.lib?.bakeMasks?.bind(this.mats.lib) ?? null;
 
-    const build = (asm, parent) => {
+    const build = (asm, parent, wearScale) => {
       if (!asm) return;
-      const map = asm.byMaterial || null;
-      if (map) {
-        const entries = map instanceof Map ? map.entries() : Object.entries(map);
-        for (const [matKey, geo] of entries) {
-          const mat = this.mats.get(matKey) || this.mats.get('polymer');
-          if (bake && geo && geo.getAttribute) {
-            try {
-              bake(geo, { wear: 1, grime: 1, ao: 1, edgeThreshold: 0.16, rng: this.rng });
-              shapeMasks(geo, { wearExp: 2.2, grimeExp: 1.6, aoExp: 1.4 });
-            } catch (_) {}
-          }
-          const mesh = new THREE.Mesh(geo, mat);
-          mesh.castShadow = true;
-          parent.add(mesh);
-          meshes.push(mesh);
-        }
+      wearScale = wearScale == null ? 1 : wearScale;
+      let map;
+      try {
+        map = typeof asm.build === 'function' ? asm.build() : (asm.byMaterial || null);
+      } catch (e) {
+        console.warn('[viewmodel] asm.build failed', e);
+        return;
       }
-      if (asm.root) parent.add(asm.root);
-      if (asm.group) parent.add(asm.group);
+      if (!map) return;
+      const entries = map instanceof Map ? map.entries() : Object.entries(map);
+      for (const [matKey, geo] of entries) {
+        if (!geo) continue;
+        if (bake && geo.getAttribute) {
+          try {
+            const soft = matKey === 'polymer' || matKey === 'rubber' || matKey === 'polymer_tan';
+            bake(geo, { wear: 1, grime: 1, ao: 1, edgeThreshold: 0.16, rng: this.rng });
+            shapeMasks(geo, {
+              wearAmp: (soft ? 0.42 : 0.62) * wearScale,
+              wearExp: soft ? 3.4 : 2.8,
+              grimeAmp: 1.15,
+              grimeExp: 1.25,
+              aoAmp: 1.0,
+              aoExp: 1.15,
+            });
+          } catch (_) {}
+        }
+        const mesh = new THREE.Mesh(geo, this.mats.get(matKey) || this.mats.get('polymer'));
+        mesh.name = (asm.name || 'part') + '-' + matKey;
+        mesh.castShadow = false;
+        mesh.receiveShadow = true;
+        mesh.frustumCulled = false;
+        parent.add(mesh);
+        meshes.push(mesh);
+        try { tris += triCount(geo); } catch (_) {}
+      }
     };
 
     if (model.body) build(model.body, group);
+
+    const parts = {};
     if (model.moving) {
       for (const [name, asm] of Object.entries(model.moving)) {
         const sub = new THREE.Object3D();
-        sub.name = name;
-        build(asm, sub);
+        sub.name = (model.id || def.id) + '-' + name;
         group.add(sub);
+        build(asm, sub, name === 'magazine' ? 0.8 : 1);
         parts[name] = sub;
       }
     }
@@ -182,29 +203,50 @@ export class Viewmodel {
     if (parts.trigger && n.triggerPivot) applyNode(parts.trigger, n.triggerPivot);
     if (parts.selector && n.selectorPivot) applyNode(parts.selector, n.selectorPivot);
 
-    let tris = 0;
-    try { tris = triCount ? triCount(group) : 0; } catch (_) {}
+    let clips = {};
+    try {
+      if (n.gripL && n.magSeat && n.magSeat.pos) {
+        clips = buildClips(n, def);
+      }
+    } catch (e) {
+      console.warn('[viewmodel] buildClips failed for', def.id, e);
+      clips = {};
+    }
 
     const entry = {
-      id: def.id,
+      id: model.id || def.id,
       def,
       model,
       group,
-      meshes,
       parts,
-      nodes: n,
-      gripR: n.gripR || { pos: [0.02, -0.04, 0.02], finger: [0, -0.35, -0.94], back: [0.95, 0.25, 0.18] },
-      gripL: n.gripL || { pos: [-0.09, 0.07, -0.22], finger: [0.82, 0.5, -0.28], back: [-0.5, 0.32, -0.8] },
-      lhandPose: def.id === 'pistol' ? 'cup' : 'clamp',
-      magLen: 0.12,
-      magSeatPos: new THREE.Vector3(),
-      magSeatQuat: new THREE.Quaternion(),
+      meshes,
       tris,
-      clips: buildClips ? buildClips(def.id) : {},
+      clips,
+      nodes: n,
+      sight: n.sight ? new THREE.Vector3().fromArray(n.sight) : new THREE.Vector3(),
+      ironSight: new THREE.Vector3().fromArray(n.ironSight || n.sight || [0, 0.1, 0]),
+      muzzle: n.muzzle ? new THREE.Vector3().fromArray(n.muzzle) : new THREE.Vector3(0, 0.075, -0.45),
+      eject: n.eject ? new THREE.Vector3().fromArray(n.eject) : new THREE.Vector3(0.03, 0.08, -0.05),
+      ejectDir: new THREE.Vector3().fromArray(n.ejectDir || [1, 0.4, 0.2]).normalize(),
+      optic: n.opticGlass || null,
+      magSeatPos: n.magSeat && n.magSeat.pos
+        ? new THREE.Vector3().fromArray(n.magSeat.pos)
+        : new THREE.Vector3(),
+      magSeatQuat: new THREE.Quaternion(),
+      gripR: n.gripR || { pos: [0.025, 0.06, 0.12], finger: [0.05, -0.55, -0.83], back: [1, 0.03, 0.04] },
+      gripL: n.gripL || { pos: [-0.09, 0.07, -0.22], finger: [0.92, -0.28, -0.27], back: [-0.22, -0.72, 0.66] },
+      chargePull: new THREE.Vector3().fromArray(n.chargePull || [0, 0, 0]),
+      boltTravel: new THREE.Vector3().fromArray(n.boltTravel || [0, 0, 0]),
+      slideTravel: new THREE.Vector3().fromArray(n.slideTravel || [0, 0, 0]),
+      triggerPull: n.triggerPull != null ? n.triggerPull : -0.3,
+      magLen: (model.magSize && model.magSize.len) || 0.2,
+      lhandPose: def.id === 'pistol' ? 'cup' : 'clamp',
     };
-    if (n.magSeat) entry.magSeatPos.fromArray(n.magSeat.pos);
+    if (n.magSeat && n.magSeat.rot) {
+      entry.magSeatQuat.setFromEuler(new THREE.Euler().fromArray(n.magSeat.rot));
+    }
 
-    this.weapons.set(def.id, entry);
+    this.weapons.set(entry.id, entry);
     try { this._fitSupportHand(entry); } catch (_) {}
     return entry;
   }
@@ -242,7 +284,7 @@ export class Viewmodel {
     if (!clip) {
       this.clipName = name;
       this.clipT = 0;
-      const dur = name === 'holster' || name === 'draw' ? 0.35 : (name.indexOf('reload') === 0 ? 1.8 : 0.5);
+      const dur = name === 'holster' || name === 'draw' ? 0.35 : (String(name).indexOf('reload') === 0 ? 1.8 : 0.5);
       this.clip = { duration: dur, events: [] };
       if (this.onClipEvent) this.onClipEvent('start', name);
       return dur;
@@ -250,6 +292,9 @@ export class Viewmodel {
     this.clip = clip;
     this.clipName = name;
     this.clipT = 0;
+    if (clip.events) {
+      for (const ev of clip.events) ev._fired = false;
+    }
     if (this.onClipEvent) this.onClipEvent('start', name);
     return clip.duration || 0.5;
   }
@@ -337,7 +382,7 @@ export class Viewmodel {
     this.armL.shoulder.copy(_v);
 
     const gR = w.gripR;
-    if (gR) {
+    if (gR && gR.pos) {
       this._handPos.fromArray(gR.pos);
       handBasis(this._handQuat, gR.finger || [0, -0.35, -0.94], gR.back || [0.95, 0.25, 0.18]);
       this.armR.solve(this._handPos, this._handQuat);
@@ -345,12 +390,11 @@ export class Viewmodel {
     }
 
     const gL = w.gripL;
-    if (gL) {
-      const pos = gL.pos;
+    if (gL && gL.pos) {
       const finger = gL.finger || [0.82, 0.5, -0.28];
       const back = gL.back || [-0.5, 0.32, -0.8];
       const pose = w.lhandPose || (w.id === 'pistol' ? 'cup' : 'clamp');
-      this._handPosL.set(pos[0], pos[1], pos[2]);
+      this._handPosL.set(gL.pos[0], gL.pos[1], gL.pos[2]);
       handBasis(this._handQuatL, finger, back);
       if (pose !== this.armL.pose) this.armL.setPose(pose);
       this.armL.solve(this._handPosL, this._handQuatL);
@@ -361,9 +405,8 @@ export class Viewmodel {
     const w = this.active;
     const o = out || this._muzzle;
     if (!w) return o.set(0, 0, 0);
-    const n = w.nodes && w.nodes.muzzle;
-    if (n) {
-      o.fromArray(n);
+    if (w.muzzle) {
+      o.copy(w.muzzle);
       w.group.localToWorld(o);
     } else {
       o.set(0, 0.075, -0.45);
@@ -376,9 +419,8 @@ export class Viewmodel {
     const w = this.active;
     const o = out || this._eject;
     if (!w) return o.set(0, 0, 0);
-    const n = w.nodes && w.nodes.eject;
-    if (n) {
-      o.fromArray(n);
+    if (w.eject) {
+      o.copy(w.eject);
       w.group.localToWorld(o);
     } else {
       o.set(0.03, 0.08, -0.05);
