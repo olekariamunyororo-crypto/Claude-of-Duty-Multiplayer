@@ -60,19 +60,20 @@ const exposed = (x, z) => inside(x, z) && !inBlockFootprint(x, z);
 
 const face = (x, z) => Math.atan2(x, z);
 
+// Primary spawn MUST be open street (not 0,0 — that is the chowk monument top).
 export const GULABI_SPAWNS = [
-  [0, 0, Math.PI, 'chowk centre'],
+  [0, -6, Math.PI, 'chowk south street'],
+  [0, 6, 0, 'chowk north street'],
+  [-6, 0, Math.PI / 2, 'chowk west'],
+  [6, 0, -Math.PI / 2, 'chowk east'],
   [0, -12, face(0, -12), 'north street'],
   [0, 12, face(0, 12), 'south street'],
   [-12, 0, face(-12, 0), 'west lane'],
   [12, 0, face(12, 0), 'east lane'],
-  [0, -8, face(0, -8), 'chowk north'],
-  [0, 8, face(0, 8), 'chowk south'],
-  [8, 0, face(8, 0), 'chowk east'],
-  [-8, 0, face(-8, 0), 'chowk west'],
   [4, -10, face(4, -10), 'north mid'],
   [-4, 10, face(-4, 10), 'south mid'],
   [10, 4, face(10, 4), 'east mid'],
+  [-10, -4, face(-10, -4), 'west mid'],
 ];
 
 export function gulabiGroundY(_x, _z) {
