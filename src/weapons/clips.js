@@ -115,11 +115,21 @@ const v3 = (x, y, z) => [x, y, z];
 
 /**
  * Build every clip for one weapon from its attachment nodes.
- * `scale` compresses or stretches the whole timeline (weapon reload speed).
+ * Returns {} if nodes are incomplete so boot never crashes.
  */
 export function buildClips(nodes, def) {
+  // Defensive: callers sometimes pass a string id or incomplete nodes.
+  if (!nodes || typeof nodes !== 'object' || !def) {
+    console.warn('[clips] buildClips: missing nodes/def, returning empty');
+    return {};
+  }
   const grip = nodes.gripL;
-  const seat = nodes.magSeat.pos;
+  const magSeat = nodes.magSeat;
+  if (!grip || !grip.pos || !magSeat || !magSeat.pos) {
+    console.warn('[clips] buildClips: missing gripL/magSeat for', def.id || def.label || '?');
+    return {};
+  }
+  const seat = magSeat.pos;
   const magLen = def.magLen ?? 0.2;
   // Support-hand orientation while it is holding the weapon vs. a magazine.
   const wrapFinger = grip.finger ?? v3(0.82, 0.5, -0.28);
@@ -134,7 +144,7 @@ export function buildClips(nodes, def) {
   const offFrame = v3(seat[0] + 0.11, seat[1] - magLen * 2.0, seat[2] + 0.16);
   const magHigh = v3(seat[0] + 0.006, seat[1] - magLen * 0.78, seat[2] + 0.008);
   const seated = v3(seat[0], seat[1] - magLen * 0.62, seat[2]);
-  const charge = nodes.chargeRest
+  const charge = nodes.chargeRest && nodes.chargeRest.pos
     ? v3(nodes.chargeRest.pos[0] - 0.02, nodes.chargeRest.pos[1] + 0.008, nodes.chargeRest.pos[2] + 0.03)
     : null;
 
