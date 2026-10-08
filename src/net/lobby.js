@@ -66,7 +66,7 @@ export function joinLobby() {
         let m; try { m = JSON.parse(e.data); } catch { return; }
         if (m.t === 'cred' && !fresh) store.set(LS.cred, m.cred);
         if (m.t === 'welcome' && !joined) {
-          joined = true; store.set(LS.nick, name); try { if (prev) prev.dispose(); } catch {} el.remove();
+          joined = true; if (m.map) window.__MAP__ = m.map; store.set(LS.nick, name); try { if (prev) prev.dispose(); } catch {} el.remove();
           resolve({ ws, welcome: m, seed: m.seed >>> 0, queue });
           return;
         }

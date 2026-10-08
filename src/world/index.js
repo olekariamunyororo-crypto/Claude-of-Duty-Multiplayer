@@ -42,6 +42,9 @@ const CITY_SPAWNS = [
 ];
 
 function resolveMap() {
+  // Multiplayer: the server's choice (sent in `welcome`) wins over ?map=.
+  const forced = globalThis.__MAP__;
+  if (forced === 'city' || forced === 'factory' || forced === 'gulabi') return forced;
   try {
     const p = new URLSearchParams(location.search).get('map');
     if (p === 'city') return 'city';
