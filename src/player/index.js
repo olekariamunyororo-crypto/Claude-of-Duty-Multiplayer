@@ -198,15 +198,23 @@ export class PlayerSystem {
 
   _resolveSpawn() {
     const world = this.ctx.peek('world');
-    const out = { feet: new THREE.Vector3(0, 0.2, 0), yaw: 0 };
-    const sp = world?.spawn?.(0);
-    if (sp?.position) {
-      out.feet.copy(sp.position);
-      out.yaw = sp.yaw ?? 0;
+    const out = { feet: new THREE.Vector3(0, 0.2, -5), yaw: Math.PI };
+    if (world?.mapId === 'gulabi') {
+      out.feet.set(0, 0.2, -5);
+      out.yaw = Math.PI;
+    } else {
+      const sp = world?.spawn?.(0);
+      if (sp?.position) {
+        out.feet.copy(sp.position);
+        out.yaw = sp.yaw ?? 0;
+      }
     }
-    // Physics owns the exact floor; drop onto it so we never start embedded.
-    const gy = this.physics.groundHeight(out.feet.x, out.feet.z, out.feet.y + 6);
-    out.feet.y = Number.isFinite(gy) ? gy + 0.03 : out.feet.y + 0.2;
+    out.feet.x = Math.max(-28, Math.min(28, out.feet.x));
+    out.feet.z = Math.max(-26, Math.min(26, out.feet.z));
+    const gy = this.physics.groundHeight(out.feet.x, out.feet.z, 8);
+    let y = Number.isFinite(gy) ? gy + 0.05 : 0.2;
+    if (y > 0.8) y = 0.2;
+    out.feet.y = y;
     return out;
   }
 

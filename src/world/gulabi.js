@@ -6,6 +6,7 @@
  */
 import * as THREE from 'three';
 import { BOX, BOX_THIN } from './kit.js';
+import { buildScrapTrain } from './scrap_train.js';
 
 const HX = 34;
 const HZ = 32;
@@ -74,6 +75,7 @@ export const GULABI_SPAWNS = [
   [-4, 10, face(-4, 10), 'south mid'],
   [10, 4, face(10, 4), 'east mid'],
   [-10, -4, face(-10, -4), 'west mid'],
+  [0, -20, face(0, -20), 'scrap train'],
 ];
 
 export function gulabiGroundY(_x, _z) {
@@ -326,6 +328,8 @@ export function buildGulabi(A, rng) {
     buildShell(A, BIG, THIN, b);
     dressShop(A, b, rng);
   }
+
+  buildScrapTrain(A, BIG, THIN);
 
   A.addBox('concrete', BIG, 0, 0.3, 0, 0, 3.6, 0.6, 3.6);
   A.box('concrete', 0, 0.3, 0, 3.6, 0.6, 3.6);
