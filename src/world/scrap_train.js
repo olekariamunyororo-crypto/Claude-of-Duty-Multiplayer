@@ -1,135 +1,220 @@
 /**
- * Bright-blue derelict train car on the open south street.
- * Hollow — walk in through side doors. Safe to skip if props missing.
+ * Passenger coach parked on the open south street (broad-gauge, ICF-style):
+ * blue body with cream stripes, barred side windows, vestibule doors with
+ * steps and grab rails, curved roof with vents, two-axle bogies on real rails,
+ * buffers and couplers, seated interior. Hollow: walk in through the side doors
+ * or the open east gangway. Skipped safely if anything throws.
+ *
+ * Local frame: u = along the coach (world X), z = across, y = up.
+ * Footprint is unchanged from the old derelict car (x +-6.6, z +-1.9 at z=-14).
  */
+import * as THREE from 'three';
+import { newTrs } from './util.js';
+
 export function buildScrapTrain(A, BIG, THIN) {
   try {
-    _buildScrapTrain(A, BIG, THIN);
+    _buildCoach(A, BIG, THIN);
   } catch (e) {
-    console.warn('[gulabi] scrap train skipped:', e?.message || e);
+    console.warn('[gulabi] train coach skipped:', e?.message || e);
   }
 }
 
-function _buildScrapTrain(A, BIG, THIN) {
-  // Open N-S street (x~0 is never inside a shop block). Visible from spawn (0,-5).
+function _buildCoach(A, BIG, THIN) {
   const cx = 0;
   const cz = -14;
-  const yaw = 0;
 
-  // One car only, stays inside |x| < 7 open corridor
   const L = 12.0;
   const W = 2.6;
-  const floorY = 0.9;
-  const roofY = 3.3;
-  const wallT = 0.12;
-  const doorW = 1.6;
-  const doorH = 2.0;
-  const doorCenters = [-3.5, 0, 3.5];
+  const hw = W / 2;
+  const RT = 0.16; // rail head height
+  const FT = 1.01; // floor top
+  const WALL_TOP = FT + 2.2;
+  const APEX = WALL_TOP + 0.28;
+  const SILL = FT + 0.85;
+  const WIN_TOP = FT + 1.85;
+  const DOOR_TOP = FT + 2.0;
+  const SKIRT = 0.8;
+  const DOOR_U = [-4.7, 4.7];
+  const DOOR_W = 1.2;
+  const WIN_U = [-3.25, -1.95, -0.65, 0.65, 1.95, 3.25];
+  const WIN_W = 0.95;
+  const WR = 0.38; // wheel radius
 
-  const bodyKey = 'metal_blue';
-  const darkKey = 'metal_dark';
-  const accentKey = 'plaster_blue';
-  const endH = roofY - floorY;
-  const endCy = (floorY + roofY) / 2;
+  const CYL = A.cache('coach:cyl', () => new THREE.CylinderGeometry(1, 1, 1, 18, 1));
 
-  const put = (id, x, y, z, ry = 0, s = 1) => {
-    try {
-      if (A.has && A.has(id)) A.put(id, x, y, z, ry, s);
-    } catch { /* prop missing */ }
+  // ---- helpers (u,y,z are coach-local; cx/cz applied here) ----
+  const box = (key, u, y, z, sx, sy, sz, surf = null) => {
+    A.addBox(key, BIG, cx + u, y, cz + z, 0, sx, sy, sz);
+    if (surf) A.box(surf, cx + u, y, cz + z, sx, sy, sz);
   };
+  const thin = (key, u, y, z, sx, sy, sz) => A.addBox(key, THIN, cx + u, y, cz + z, 0, sx, sy, sz);
+  const cylX = (key, u, y, z, r, len) => A.add(key, CYL, newTrs(cx + u, y, cz + z, 0, r, len, r, 0, Math.PI / 2));
+  const cylZ = (key, u, y, z, r, len) => A.add(key, CYL, newTrs(cx + u, y, cz + z, 0, r, len, r, Math.PI / 2, 0));
+  const cylY = (key, u, y, z, r, h) => A.add(key, CYL, newTrs(cx + u, y, cz + z, 0, r, h, r));
 
-  // Rail bed under the car (helps visibility)
-  A.addBox('concrete', BIG, cx, 0.08, cz, yaw, L + 2, 0.12, W + 1.2);
-  A.box('concrete', cx, 0.08, cz, L + 2, 0.12, W + 1.2);
+  // ---- track: ballast, sleepers, rails ----
+  box('gravel', 0, 0.025, 0, L + 1.4, 0.05, W + 1.0, 'dirt');
+  for (let u = -6.2; u <= 6.21; u += 0.62) thin('wood_dark', u, 0.075, 0, 0.24, 0.05, 2.3);
+  for (const z of [-0.84, 0.84]) thin('steel', 0, 0.13, z, L + 1.0, 0.06, 0.08);
 
-  // Floor (walkable)
-  A.addBox('floor_concrete', BIG, cx, floorY, cz, yaw, L - 0.15, 0.1, W - 0.2);
-  A.box('concrete', cx, floorY, cz, L - 0.15, 0.1, W - 0.2);
-
-  // Underframe
-  A.addBox(darkKey, BIG, cx, 0.45, cz, yaw, L + 0.2, 0.5, W + 0.08);
-  A.box('metal', cx, 0.45, cz, L + 0.2, 0.5, W + 0.08);
-
-  // Bogies + wheels
-  for (const bx of [-3.8, 3.8]) {
-    A.addBox(darkKey, BIG, cx + bx, 0.3, cz, yaw, 2.0, 0.3, W + 0.12);
-    A.box('metal', cx + bx, 0.3, cz, 2.0, 0.3, W + 0.12);
-    for (const wx of [-0.55, 0.55]) {
-      for (const wz of [-1.05, 1.05]) {
-        A.addBox(darkKey, THIN, cx + bx + wx, 0.32, cz + wz, yaw, 0.5, 0.65, 0.16);
+  // ---- bogies ----
+  for (const bu of [-4.1, 4.1]) {
+    for (const z of [-0.62, 0.62]) box('metal_dark', bu, 0.76, z, 2.6, 0.16, 0.12);
+    box('metal_dark', bu, 0.78, 0, 0.3, 0.14, 1.3);
+    for (const wu of [-1.05, 1.05]) {
+      cylZ('steel', bu + wu, RT + WR, 0, 0.055, 1.9);
+      for (const z of [-0.84, 0.84]) {
+        cylZ('metal_dark', bu + wu, RT + WR, z, WR, 0.1);
+        cylZ('steel', bu + wu, RT + WR, z + Math.sign(z) * 0.03, 0.13, 0.14);
+      }
+      for (const z of [-0.62, 0.62]) {
+        box('metal_dark', bu + wu, 0.6, z, 0.22, 0.2, 0.16);
+        cylY('steel', bu + wu, 0.72, z * 1.0, 0.07, 0.2);
       }
     }
   }
 
-  // Bright blue roof
-  A.addBox(bodyKey, BIG, cx, roofY + 0.08, cz, yaw, L + 0.12, 0.18, W + 0.18);
-  A.box('metal', cx, roofY + 0.08, cz, L + 0.12, 0.18, W + 0.18);
-  // Pantograph stump
-  A.addBox(darkKey, THIN, cx + 2.0, roofY + 0.65, cz, yaw, 0.1, 1.0, 0.1);
-  A.addBox(darkKey, THIN, cx + 2.0, roofY + 1.15, cz + 0.35, yaw, 0.08, 0.08, 0.9);
+  // ---- underframe + equipment ----
+  for (const z of [-0.75, 0.75]) box('metal_dark', 0, 0.86, z, L - 0.1, 0.14, 0.1);
+  box('metal_dark', 0, 0.85, 0, L - 0.1, 0.12, 0.2);
+  box('metal_dark', -1.7, 0.6, -0.55, 1.5, 0.36, 0.5);
+  box('metal_dark', 1.9, 0.6, -0.55, 1.1, 0.36, 0.5);
+  cylX('steel', 0.4, 0.64, 0.5, 0.26, 2.4);
+  cylX('metal_dark', -1.9, 0.64, 0.45, 0.17, 0.8);
+  cylX('steel', 0, 0.5, 0.1, 0.03, L - 3.4);
+  A.box('metal', cx, (RT + 0.91) / 2, cz, L - 0.1, 0.91 - RT, 1.9);
 
-  // End walls — west solid (cab), east open
-  for (const side of [-1, 1]) {
-    const ex = cx + side * (L / 2 - wallT / 2);
-    if (side === -1) {
-      A.addBox(accentKey, BIG, ex, endCy, cz, yaw, wallT, endH, W);
-      A.box('metal', ex, endCy, cz, wallT, endH, W);
-      A.addBox(darkKey, THIN, ex + 0.08, floorY + 1.4, cz - 0.65, yaw, 0.1, 0.3, 0.4);
-      A.addBox(darkKey, THIN, ex + 0.08, floorY + 1.4, cz + 0.65, yaw, 0.1, 0.3, 0.4);
-    } else {
-      const gap = 1.5;
-      for (const sz of [-1, 1]) {
-        const zw = (W - gap) / 4 + gap / 2;
-        A.addBox(bodyKey, BIG, ex, endCy, cz + sz * (gap / 2 + zw / 2), yaw, wallT, endH, zw);
-        A.box('metal', ex, endCy, cz + sz * (gap / 2 + zw / 2), wallT, endH, zw);
-      }
-      A.addBox(bodyKey, BIG, ex, roofY - 0.2, cz, yaw, wallT, 0.45, W);
-      A.box('metal', ex, roofY - 0.2, cz, wallT, 0.45, W);
-    }
-  }
+  // ---- floor ----
+  box('wood_dark', 0, FT - 0.05, 0, L - 0.1, 0.1, W - 0.1, 'metal');
+  thin('rubber', 0, FT + 0.004, 0, L - 1.2, 0.008, 0.8);
 
-  // Long blue side walls with door openings
+  // ---- side walls (blue outside, cream lining inside, real openings) ----
+  const seg = (sz, u0, u1, y0, y1) => {
+    const len = u1 - u0;
+    const h = y1 - y0;
+    if (len < 0.02 || h < 0.02) return;
+    const um = (u0 + u1) / 2;
+    const ym = (y0 + y1) / 2;
+    box('coach_blue', um, ym, sz * (hw - 0.05), len, h, 0.1);
+    box('coach_cream', um, ym, sz * (hw - 0.12), len, h, 0.04);
+    A.box('metal', cx + um, ym, cz + sz * (hw - 0.08), len, h, 0.16);
+  };
+  const winEdges = [-4.1];
+  for (const u of WIN_U) winEdges.push(u - WIN_W / 2, u + WIN_W / 2);
+  winEdges.push(4.1);
+
   for (const sz of [-1, 1]) {
-    const zWall = cz + sz * (W / 2 - wallT / 2);
-    const edges = [-L / 2 + 0.12];
-    for (const d of doorCenters) {
-      edges.push(d - doorW / 2);
-      edges.push(d + doorW / 2);
+    seg(sz, -L / 2, -5.3, SKIRT, WALL_TOP);
+    seg(sz, 5.3, L / 2, SKIRT, WALL_TOP);
+    for (const du of DOOR_U) {
+      seg(sz, du - DOOR_W / 2, du + DOOR_W / 2, SKIRT, FT - 0.1);
+      seg(sz, du - DOOR_W / 2, du + DOOR_W / 2, DOOR_TOP, WALL_TOP);
     }
-    edges.push(L / 2 - 0.12);
-    for (let i = 0; i < edges.length - 1; i += 2) {
-      const a0 = edges[i];
-      const a1 = edges[i + 1];
-      const len = a1 - a0;
-      if (len < 0.25) continue;
-      const mx = cx + (a0 + a1) / 2;
-      A.addBox(bodyKey, BIG, mx, endCy, zWall, yaw, len, endH, wallT);
-      A.box('metal', mx, endCy, zWall, len, endH, wallT);
+    seg(sz, -4.1, 4.1, SKIRT, SILL);
+    seg(sz, -4.1, 4.1, WIN_TOP, WALL_TOP);
+    for (let i = 0; i < winEdges.length; i += 2) seg(sz, winEdges[i], winEdges[i + 1], SILL, WIN_TOP);
+
+    // cream livery stripes
+    for (const [a, b] of [[-L / 2, -5.3], [-4.1, 4.1], [5.3, L / 2]]) {
+      thin('coach_cream', (a + b) / 2, 1.74, sz * (hw + 0.006), b - a, 0.08, 0.012);
+      thin('coach_cream', (a + b) / 2, 2.93, sz * (hw + 0.006), b - a, 0.08, 0.012);
     }
-    for (const d of doorCenters) {
-      const ly = floorY + doorH + (roofY - floorY - doorH) / 2;
-      const lh = Math.max(0.3, roofY - floorY - doorH);
-      A.addBox(bodyKey, BIG, cx + d, ly, zWall, yaw, doorW + 0.15, lh, wallT + 0.03);
-      A.box('metal', cx + d, ly, zWall, doorW + 0.15, lh, wallT + 0.03);
-      // hanging door leaf
-      if (sz === -1) {
-        A.addBox(darkKey, THIN, cx + d - doorW * 0.3, floorY + doorH / 2, zWall + sz * 0.07, yaw, 0.5, doorH - 0.1, 0.05);
+
+    // windows: glass, frame, bars
+    const wy = (SILL + WIN_TOP) / 2;
+    const wh = WIN_TOP - SILL;
+    for (const u of WIN_U) {
+      thin('window_glass', u, wy, sz * (hw - 0.06), WIN_W, wh, 0.012);
+      for (const s of [-1, 1]) thin('steel', u + s * (WIN_W / 2 + 0.02), wy, sz * (hw + 0.008), 0.04, wh + 0.08, 0.03);
+      thin('steel', u, SILL - 0.02, sz * (hw + 0.008), WIN_W + 0.08, 0.04, 0.03);
+      thin('steel', u, WIN_TOP + 0.02, sz * (hw + 0.008), WIN_W + 0.08, 0.04, 0.03);
+      for (const k of [-0.28, 0, 0.28]) thin('metal_dark', u + k, wy, sz * (hw + 0.002), 0.025, wh, 0.02);
+    }
+
+    // doors: opened leaf, frame, grab rails, steps
+    for (const du of DOOR_U) {
+      const dir = Math.sign(du);
+      const lu = du + dir * 0.95;
+      thin('coach_blue', lu, FT + 1.0, sz * (hw + 0.045), 0.6, 2.0, 0.05);
+      thin('metal_dark', lu, FT + 1.45, sz * (hw + 0.075), 0.3, 0.4, 0.02);
+      thin('steel', du + dir * 0.62, FT + 1.0, sz * (hw + 0.045), 0.04, 2.0, 0.07);
+      for (const s of [-1, 1]) {
+        thin('steel', du + s * 0.62, FT + 1.0, sz * hw, 0.04, 2.0, 0.14);
+        thin('steel', du + s * 0.7, 1.5, sz * (hw + 0.1), 0.035, 1.6, 0.035);
       }
-    }
-    // window strips
-    for (let i = 0; i < doorCenters.length - 1; i++) {
-      const mid = (doorCenters[i] + doorCenters[i + 1]) / 2;
-      A.addBox(darkKey, THIN, cx + mid, floorY + 1.7, zWall + sz * 0.02, yaw, 1.4, 0.65, 0.05);
+      box('steel', du, FT - 0.005, sz * hw, DOOR_W, 0.03, 0.24);
+      box('steel', du, 0.68 - 0.03, sz * (hw + 0.14), 1.0, 0.06, 0.28, 'metal');
+      box('steel', du, 0.35 - 0.03, sz * (hw + 0.42), 1.0, 0.06, 0.28, 'metal');
+      for (const s of [-1, 1]) thin('metal_dark', du + s * 0.5, 0.36, sz * (hw + 0.28), 0.04, 0.72, 0.6);
     }
   }
 
-  // Interior scrap
-  put('crate_a', cx - 3.0, floorY + 0.05, cz + 0.35, 0.2, 0.9);
-  put('barrel_rust', cx + 1.0, floorY + 0.05, cz + 0.5, 0.4, 1);
-  put('jerry_can', cx + 2.5, floorY + 0.05, cz - 0.5, 0.8, 1);
-  put('sandbag_a', cx - 0.5, floorY + 0.05, cz - 0.6, 0.3, 1);
-  A.addBox('wood', BIG, cx - 1.2, floorY + 0.25, cz + 0.8, yaw, 2.8, 0.4, 0.35);
-  A.box('wood', cx - 1.2, floorY + 0.25, cz + 0.8, 2.8, 0.4, 0.35);
+  // ---- end walls ----
+  const endWall = (e, sz0, sz1) => {
+    // full-height end panel between z=sz0..sz1
+    const zc = (sz0 + sz1) / 2;
+    const zw = sz1 - sz0;
+    box('coach_blue', e * (L / 2 - 0.06), (SKIRT + WALL_TOP) / 2, zc, 0.1, WALL_TOP - SKIRT, zw);
+    box('coach_cream', e * (L / 2 - 0.13), (SKIRT + WALL_TOP) / 2, zc, 0.04, WALL_TOP - SKIRT, zw);
+    A.box('metal', cx + e * (L / 2 - 0.09), (SKIRT + WALL_TOP) / 2, cz + zc, 0.16, WALL_TOP - SKIRT, zw);
+  };
+  // west: closed, with vestibule door panel
+  endWall(-1, -hw, hw);
+  thin('metal_dark', -L / 2 - 0.005, FT + 1.0, 0, 0.02, 2.0, 0.9);
+  thin('metal_dark', -L / 2 - 0.012, FT + 1.55, 0, 0.02, 0.4, 0.4);
+  // east: open doorway 1.0 wide
+  endWall(1, 0.5, hw);
+  endWall(1, -hw, -0.5);
+  {
+    const u = L / 2 - 0.09;
+    const y0 = DOOR_TOP;
+    box('coach_blue', L / 2 - 0.06, (y0 + WALL_TOP) / 2, 0, 0.1, WALL_TOP - y0, 1.0);
+    A.box('metal', cx + u, (y0 + WALL_TOP) / 2, cz, 0.16, WALL_TOP - y0, 1.0);
+  }
+  // rubber gangway frames
+  for (const e of [-1, 1]) {
+    const gu = e * (L / 2 + 0.2);
+    for (const z of [-0.6, 0.6]) box('rubber', gu, FT + 1.05, z, 0.4, 2.2, 0.14);
+    box('rubber', gu, FT + 2.1, 0, 0.4, 0.14, 1.34);
+    box('rubber', gu, FT + 0.04, 0, 0.4, 0.08, 1.34);
+  }
 
-  console.info('[gulabi] blue scrap train at', cx, cz);
+  // ---- buffers + couplers ----
+  for (const e of [-1, 1]) {
+    box('metal_dark', e * (L / 2 + 0.06), 0.82, 0, 0.14, 0.22, 2.3);
+    for (const z of [-0.88, 0.88]) {
+      cylX('coach_red', e * (L / 2 + 0.25), 0.82, z, 0.11, 0.26);
+      cylX('steel', e * (L / 2 + 0.4), 0.82, z, 0.17, 0.05);
+    }
+    box('metal_dark', e * (L / 2 + 0.35), 0.78, 0, 0.5, 0.1, 0.14);
+    box('metal_dark', e * (L / 2 + 0.6), 0.78, 0, 0.12, 0.18, 0.22);
+  }
+
+  // ---- roof: faceted arch, vents, gutters ----
+  const SIDE_A = 0.38;
+  const SIDE_S = 0.755;
+  box('coach_roof', 0, APEX - 0.035, 0, L + 0.1, 0.07, 1.24);
+  for (const sz of [-1, 1]) {
+    A.add('coach_roof', BIG, newTrs(cx, APEX - 0.14 - 0.035, cz + sz * 0.97, 0, L + 0.1, 0.07, SIDE_S, sz * SIDE_A, 0));
+    thin('steel', 0, WALL_TOP + 0.02, sz * (hw + 0.01), L + 0.1, 0.04, 0.04);
+  }
+  A.box('metal', cx, (WALL_TOP + APEX) / 2, cz, L + 0.1, APEX - WALL_TOP, W);
+  for (const u of [-4.2, -2.1, 0, 2.1, 4.2]) {
+    cylY('steel', u, APEX + 0.08, 0, 0.14, 0.16);
+    cylY('coach_roof', u, APEX + 0.19, 0, 0.09, 0.06);
+  }
+
+  // ---- interior: ceiling, lights, seats ----
+  box('coach_cream', 0, WALL_TOP - 0.03, 0, L - 0.2, 0.04, W - 0.3);
+  for (const u of [-4.7, -3.3, 0, 3.3, 4.7]) thin('window_glow', u, WALL_TOP - 0.06, 0, 0.7, 0.02, 0.16);
+  for (const sz of [-1, 1]) {
+    const fab = sz > 0 ? 'fabric_teal' : 'fabric_red';
+    for (const u of WIN_U) {
+      box('metal_dark', u, FT + 0.2, sz * 0.88, 0.9, 0.4, 0.46, 'wood');
+      box(fab, u, FT + 0.45, sz * 0.88, 0.95, 0.1, 0.52);
+      box(fab, u, FT + 0.68, sz * (hw - 0.19), 0.95, 0.44, 0.1);
+    }
+  }
+
+  console.info('[gulabi] passenger coach at', cx, cz);
 }

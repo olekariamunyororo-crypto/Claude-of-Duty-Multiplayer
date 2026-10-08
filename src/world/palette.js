@@ -210,6 +210,11 @@ export const PALETTE = {
     surface: 'metal',
     opts: { vertexMasks: true, tint: 0x4a4a48, scale: 1.0 },
   },
+  // Passenger-coach livery (scrap_train.js)
+  coach_blue: { name: 'metal_painted', surface: 'metal', opts: { vertexMasks: true, tint: 0x2b73d9, scale: 1.3 } },
+  coach_cream: { name: 'metal_painted', surface: 'metal', opts: { vertexMasks: true, tint: 0xe8dfc0, scale: 1.3 } },
+  coach_roof: { name: 'metal_painted', surface: 'metal', opts: { vertexMasks: true, tint: 0xc4c9cc, scale: 1.1 } },
+  coach_red: { name: 'metal_painted', surface: 'metal', opts: { vertexMasks: true, tint: 0xa83228, scale: 1.0 } },
   steel: { name: 'metal_brushed', surface: 'metal', opts: { vertexMasks: true, scale: 0.9 } },
   corrugated: { name: 'corrugated', surface: 'metal', opts: { vertexMasks: true, scale: 2.2 } },
 
